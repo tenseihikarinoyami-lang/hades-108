@@ -1,0 +1,190 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Cinzel Decorative", "Cinzel", serif;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+@layer base {
+  :root, .dark {
+    --background: #05010a; /* Abyssal black/purple */
+    --foreground: #e0e6ed; /* Cyber white */
+    
+    --card: rgba(15, 5, 24, 0.6); /* Glassmorphic dark purple */
+    --card-foreground: #e0e6ed;
+    
+    --popover: rgba(10, 2, 15, 0.9);
+    --popover-foreground: #e0e6ed;
+    
+    --primary: #ff003c; /* Cyberpunk Neon Red / Blood */
+    --primary-foreground: #ffffff;
+    
+    --secondary: #4a00e0; /* Neon Purple */
+    --secondary-foreground: #ffffff;
+    
+    --muted: rgba(255, 255, 255, 0.05);
+    --muted-foreground: #8b9bb4;
+    
+    --accent: #00f0ff; /* Cyan / Hades Soul Fire */
+    --accent-foreground: #000000;
+    
+    --destructive: #8a0303;
+    --destructive-foreground: #ffffff;
+    
+    --border: rgba(74, 0, 224, 0.3);
+    --input: rgba(15, 5, 24, 0.8);
+    --ring: #ff003c;
+    
+    --radius: 0.25rem; /* Sharper edges for futuristic look */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    background-color: #05010a;
+    background-image: 
+      radial-gradient(circle at 50% -20%, rgba(74, 0, 224, 0.15) 0%, transparent 60%),
+      linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-attachment: fixed;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Custom Anime/Cyberpunk Utilities */
+.clip-diagonal {
+  clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+}
+.clip-card {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%);
+}
+.clip-hex {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+.neon-text-primary {
+  text-shadow: 0 0 10px rgba(255, 0, 60, 0.8), 0 0 20px rgba(255, 0, 60, 0.4);
+}
+.neon-text-accent {
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4);
+}
+.neon-border {
+  box-shadow: 0 0 10px rgba(74, 0, 224, 0.5), inset 0 0 10px rgba(74, 0, 224, 0.2);
+}
+.glass-panel {
+  background: rgba(15, 5, 24, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 240, 255, 0.1);
+}
+.hologram {
+  position: relative;
+  overflow: hidden;
+}
+.hologram::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(0, 240, 255, 0.2), transparent);
+  transform: skewX(-20deg);
+  animation: hologram-scan 4s infinite linear;
+  pointer-events: none;
+}
+.scanline {
+  position: relative;
+}
+.scanline::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 10;
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+@keyframes hologram-scan {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+@keyframes shake {
+  0% { transform: translate(1px, 1px) rotate(0deg); }
+  10% { transform: translate(-1px, -2px) rotate(-1deg); }
+  20% { transform: translate(-3px, 0px) rotate(1deg); }
+  30% { transform: translate(3px, 2px) rotate(0deg); }
+  40% { transform: translate(1px, -1px) rotate(1deg); }
+  50% { transform: translate(-1px, 2px) rotate(-1deg); }
+  60% { transform: translate(-3px, 1px) rotate(0deg); }
+  70% { transform: translate(3px, 1px) rotate(-1deg); }
+  80% { transform: translate(-1px, -1px) rotate(1deg); }
+  90% { transform: translate(1px, 2px) rotate(0deg); }
+  100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
+.animate-shake {
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
