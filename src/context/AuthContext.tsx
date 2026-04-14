@@ -98,7 +98,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
-  updateProfile: async () => {},
+  updateProfile: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const data = docSnap.data() as UserProfile;
-            
+
             // Check login streak and daily missions reset
             const today = new Date().toISOString().split('T')[0];
             let updatedData = { ...data };
@@ -131,20 +131,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const lastLogin = new Date(data.stats.lastLoginDate);
               const currentDate = new Date(today);
               const diffTime = Math.abs(currentDate.getTime() - lastLogin.getTime());
-              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-              
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
               if (diffDays === 1) {
                 updatedData.stats.loginStreak += 1;
               } else {
                 updatedData.stats.loginStreak = 1;
               }
               updatedData.stats.lastLoginDate = today;
-              
+
               // Reset daily missions
               updatedData.dailyMissions = [
                 { id: 'daily_trivias', title: 'Juega 3 Trivias', progress: 0, target: 3, completed: false },
                 { id: 'daily_messages', title: 'Envía 5 mensajes en Cocytos', progress: 0, target: 5, completed: false }
               ];
+
+              // DAILY LOGIN REWARDS - Recompensas por día consecutivo
+              const streak = updatedData.stats.loginStreak || 1;
+              const dailyRewards = [
+                { day: 1, reward: { obolos: 100 }, label: '100 Óbolos' },
+                { day: 2, reward: { consumables: { time_potion: 1 } }, label: 'Poción de Tiempo' },
+                { day: 3, reward: { memoryFragments: 1 }, label: 'Fragmento de Memoria' },
+                { day: 4, reward: { obolos: 200 }, label: '200 Óbolos' },
+                { day: 5, reward: { starFragments: 1 }, label: 'Fragmento Estelar' },
+                { day: 6, reward: { obolos: 300 }, label: '300 Óbolos' },
+                { day: 7, reward: { obolos: 500, starFragments: 2 }, label: '¡PREMIO PREMIUM! 500 Óbolos + 2 Fragmentos' },
+              ];
+
+              const rewardIndex = Math.min(streak - 1, 6);
+              const reward = dailyRewards[rewardIndex];
+
+              if (reward) {
+                if (reward.reward.obolos) {
+                  updatedData.obolos = (updatedData.obolos || 0) + reward.reward.obolos;
+                }
+                if (reward.reward.memoryFragments) {
+                  updatedData.memoryFragments = (updatedData.memoryFragments || 0) + reward.reward.memoryFragments;
+                }
+                if (reward.reward.starFragments) {
+                  updatedData.starFragments = (updatedData.starFragments || 0) + reward.reward.starFragments;
+                }
+                if (reward.reward.consumables) {
+                  const currentConsumables = updatedData.consumables || { time_potion: 0, clairvoyance_potion: 0, healing_potion: 0 };
+                  updatedData.consumables = {
+                    ...currentConsumables,
+                    time_potion: (currentConsumables.time_potion || 0) + (reward.reward.consumables.time_potion || 0),
+                    clairvoyance_potion: currentConsumables.clairvoyance_potion || 0,
+                    healing_potion: currentConsumables.healing_potion || 0
+                  };
+                }
+                updatedData.pendingDailyReward = {
+                  day: streak,
+                  reward: reward.label,
+                  claimed: false
+                };
+              }
+
               needsUpdate = true;
             }
 
@@ -207,7 +249,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (needsUpdate) {
               await setDoc(docRef, updatedData, { merge: true });
             }
-            
+
             setProfile(updatedData);
           } else {
             // Create new profile
