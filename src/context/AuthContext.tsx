@@ -30,6 +30,11 @@ export interface UserProfile {
   referredBy?: string;
   referralCount?: number;
   pendingDailyReward?: { day: number; reward: string; claimed: boolean };
+  // SISTEMA DE LOGROS
+  achievements?: string[];
+  prestigePoints?: number;
+  maxCombo?: number;
+  pagesVisited?: number;
   titles?: string[];
   activeTitle?: string;
   inventory?: string[];
