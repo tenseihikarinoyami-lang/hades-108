@@ -8,14 +8,78 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Shield, Target, Zap, Fingerprint, Cpu, AlertCircle, Medal, Crosshair, Flag, PackageOpen, Sparkles, Swords, Shield as ShieldIcon, Scroll } from 'lucide-react';
+import { Shield, Target, Zap, Fingerprint, Cpu, AlertCircle, Medal, Crosshair, Flag, PackageOpen, Sparkles, Swords, Shield as ShieldIcon, Scroll, Users, Copy, Gift, Coins } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { processReferralCode } from '@/lib/referrals';
+import { useState } from 'react';
 
 const FACTIONS = [
   { id: 'Wyvern', name: 'Ejército de Radamanthys (Wyvern)', color: 'text-purple-500', border: 'border-purple-500' },
   { id: 'Griffon', name: 'Ejército de Minos (Griffon)', color: 'text-blue-500', border: 'border-blue-500' },
   { id: 'Garuda', name: 'Ejército de Aiacos (Garuda)', color: 'text-orange-500', border: 'border-orange-500' }
 ];
+
+const ReferralInput: React.FC = () => {
+  const { user, profile } = useAuth();
+  const [referralInput, setReferralInput] = useState('');
+  const [processing, setProcessing] = useState(false);
+
+  const handleApplyReferral = async () => {
+    if (!user || profile?.referredBy) return;
+    setProcessing(true);
+    try {
+      const result = await processReferralCode(user.uid, referralInput);
+      if (result.success) {
+        toast.success(result.message);
+        setReferralInput('');
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error('Error al aplicar código de referido');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  if (profile?.referredBy) {
+    return (
+      <div className="bg-background/50 border border-green-500/30 p-4 clip-diagonal">
+        <h4 className="text-sm font-bold text-green-400 uppercase tracking-widest flex items-center gap-2">
+          <Gift className="w-4 h-4" /> Referido Aplicado
+        </h4>
+        <p className="text-xs text-muted-foreground mt-2">
+          Ya usaste un código de referido al registrarte. ¡Gracias!
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-background/50 border border-orange-500/30 p-4 clip-diagonal space-y-3">
+      <h4 className="text-sm font-bold text-orange-400 uppercase tracking-widest flex items-center gap-2">
+        <Gift className="w-4 h-4" /> ¿Tienes un código de referido?
+      </h4>
+      <div className="flex gap-2">
+        <Input
+          value={referralInput}
+          onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
+          placeholder="Ingresa el código"
+          maxLength={8}
+          className="flex-1 bg-background border-accent/50 font-mono tracking-widest text-center uppercase"
+        />
+        <Button
+          variant="outline"
+          onClick={handleApplyReferral}
+          disabled={processing || referralInput.length < 4}
+          className="clip-diagonal border-orange-500/50 hover:bg-orange-500/20"
+        >
+          {processing ? '...' : 'Aplicar'}
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const SPECTER_LOGOS: Record<string, string> = {
   "Radamanthys de Wyvern": "https://images.unsplash.com/photo-1577493341514-229ea9d560f9?w=800&q=80", // Dragon scales
@@ -449,6 +513,68 @@ export const Profile: React.FC = () => {
             Inventario vacío. Derrota enemigos en la Arena para obtener equipo.
           </p>
         )}
+      </CardContent>
+    </Card>
+
+    {/* SISTEMA DE REFERIDOS - Cadena de Almas */}
+    <Card className="glass-panel border-accent/20 clip-card relative overflow-hidden">
+      <div className="absolute inset-0 scanline opacity-10 pointer-events-none" />
+      <CardHeader className="border-b border-accent/10 pb-4">
+        <CardTitle className="font-display text-lg text-accent flex items-center gap-2">
+          <Gift className="w-5 h-5" /> Cadena de Almas (Referidos)
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Comparte tu código y gana recompensas
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-6">
+        {/* Tu Código de Referido */}
+        <div className="bg-background/50 border border-cyan-500/30 p-4 clip-diagonal space-y-3">
+          <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-2">
+            <Users className="w-4 h-4" /> Tu Código de Referido
+          </h4>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 bg-background border border-accent/50 rounded p-3 font-mono text-2xl text-center tracking-[0.3em] text-accent">
+              {profile?.referralCode || '--------'}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="clip-diagonal border-accent/50 hover:bg-accent/20"
+              onClick={() => {
+                navigator.clipboard.writeText(profile?.referralCode || '');
+                toast.success('¡Código copiado!');
+              }}
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Comparte este código con tus amigos. Cuando se registren, ambos ganan +200 Óbolos y tú recibes +1 Fragmento Estelar.
+          </p>
+        </div>
+
+        {/* Ingresar Código de Referido */}
+        <ReferralInput />
+
+        {/* Estadísticas */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-background/50 border border-purple-500/30 p-3 clip-diagonal text-center space-y-1">
+            <Users className="w-6 h-6 text-purple-400 mx-auto" />
+            <div className="text-2xl font-bold text-purple-400">{profile?.referralCount || 0}</div>
+            <div className="text-[9px] text-muted-foreground uppercase tracking-widest">Referidos</div>
+          </div>
+          <div className="bg-background/50 border border-yellow-500/30 p-3 clip-diagonal text-center space-y-1">
+            <Coins className="w-6 h-6 text-yellow-400 mx-auto" />
+            <div className="text-2xl font-bold text-yellow-400">{(profile?.referralCount || 0) * 200}</div>
+            <div className="text-[9px] text-muted-foreground uppercase tracking-widest">Óbolos Ganados</div>
+          </div>
+          <div className="bg-background/50 border border-pink-500/30 p-3 clip-diagonal text-center space-y-1">
+            <Sparkles className="w-6 h-6 text-pink-400 mx-auto" />
+            <div className="text-2xl font-bold text-pink-400">{profile?.referralCount || 0}</div>
+            <div className="text-[9px] text-muted-foreground uppercase tracking-widest">Fragmentos</div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   </div>

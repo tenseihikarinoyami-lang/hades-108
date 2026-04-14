@@ -25,6 +25,11 @@ export interface UserProfile {
     loginStreak: number;
     lastLoginDate: string;
   };
+  // SISTEMA DE REFERIDOS
+  referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
+  pendingDailyReward?: { day: number; reward: string; claimed: boolean };
   titles?: string[];
   activeTitle?: string;
   inventory?: string[];
@@ -300,7 +305,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               dailyMissions: [
                 { id: 'daily_trivias', title: 'Juega 3 Trivias', progress: 0, target: 3, completed: false },
                 { id: 'daily_messages', title: 'Envía 5 mensajes en Cocytos', progress: 0, target: 5, completed: false }
-              ]
+              ],
+              // SISTEMA DE REFERIDOS - Generar código único
+              referralCode: firebaseUser.uid.substring(0, 8).toUpperCase(),
+              referredBy: null,
+              referralCount: 0
             };
             await setDoc(docRef, newProfile);
             setProfile(newProfile);
