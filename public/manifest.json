@@ -1,0 +1,42 @@
+{
+  "name": "Hades-108 - Underworld Protocol",
+  "short_name": "Hades-108",
+  "description": "Despierta tu Sapuris y conviértete en uno de los 108 espectros del Inframundo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05010a",
+  "theme_color": "#00f0ff",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "shortcuts": [
+    {
+      "name": "Arena de Trivias",
+      "url": "/trivia",
+      "description": "Entra a la Arena de los Dioses"
+    },
+    {
+      "name": "Perfil",
+      "url": "/profile",
+      "description": "Revisa tu progreso"
+    },
+    {
+      "name": "Chat Cocytos",
+      "url": "/chat",
+      "description": "Comunícate con otros espectros"
+    }
+  ]
+}
