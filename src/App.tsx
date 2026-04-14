@@ -35,6 +35,7 @@ import { Pets } from './pages/Pets';
 import { AuctionHouse } from './pages/AuctionHouse';
 import { Fishing } from './pages/Fishing';
 import { SystemStatus } from './pages/SystemStatus';
+import { Friends } from './pages/Friends';
 import { Toaster } from '@/components/ui/sonner';
 
 export default function App() {
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="auction" element={<AuctionHouse />} />
             <Route path="fishing" element={<Fishing />} />
             <Route path="system" element={<SystemStatus />} />
+            <Route path="friends" element={<Friends />} />
           </Route>
         </Routes>
         <Toaster theme="dark" />
