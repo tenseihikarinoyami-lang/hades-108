@@ -6,22 +6,28 @@ import { useAuth } from '@/context/AuthContext';
 import { loginWithGoogle } from '@/lib/firebase';
 import { MessageSquare, Gamepad2, ShieldAlert, Zap, Flame, Skull } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DashboardHub } from '@/components/DashboardHub';
 
 export const Home: React.FC = () => {
   const { user } = useAuth();
 
+  // Si el usuario está logueado, mostrar Dashboard
+  if (user) {
+    return <DashboardHub />;
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] gap-16 relative">
-      
+
       {/* Hero Section */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1, type: "spring" }}
         className="text-center max-w-4xl space-y-8 relative z-10"
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[150px] -z-10 animate-pulse-slow" />
-        
+
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -37,11 +43,11 @@ export const Home: React.FC = () => {
         <p className="text-xl md:text-3xl font-sans font-medium text-muted-foreground tracking-[0.3em] uppercase neon-text-accent">
           Despierta tu Sapuris
         </p>
-        
+
         <div className="pt-12">
           {!user ? (
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               onClick={async () => {
                 try {
                   await loginWithGoogle();
@@ -72,7 +78,7 @@ export const Home: React.FC = () => {
       </motion.div>
 
       {/* Features Grid */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.8 }}
