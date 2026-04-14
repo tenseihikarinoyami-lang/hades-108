@@ -9,6 +9,7 @@ import { Shield, Sword, Gem, Package, Hexagon, Coins, Sparkles, Flame, Snowflake
 import { toast } from 'sonner';
 import { audio } from '@/lib/audio';
 import { Equipment, RARITY_COLORS, calculateSetBonus, Element } from '@/lib/rpg';
+import { CharacterAvatar } from '@/components/CharacterAvatar';
 
 export const EquipmentPage: React.FC = () => {
   const { user, profile } = useAuth();
@@ -53,8 +54,8 @@ export const EquipmentPage: React.FC = () => {
       const docRef = doc(db, 'users', user.uid);
       const newInventory = profile.gearInventory?.filter(g => g.id !== item.id) || [];
       const sellValue = item.rarity === 'divino' ? 500 : item.rarity === 'espectro' ? 200 : item.rarity === 'oro' ? 100 : item.rarity === 'plata' ? 50 : 10;
-      
-      await updateDoc(docRef, { 
+
+      await updateDoc(docRef, {
         gearInventory: newInventory,
         obolos: (profile.obolos || 0) + sellValue
       });
@@ -77,7 +78,7 @@ export const EquipmentPage: React.FC = () => {
   const renderSlot = (type: 'weapon' | 'armor' | 'artifact', item: Equipment | null | undefined, icon: React.ReactNode, label: string) => (
     <div className="flex flex-col items-center gap-2">
       <span className="text-xs font-mono text-accent tracking-widest uppercase">{label}</span>
-      <div 
+      <div
         className={`w-24 h-24 clip-hex flex items-center justify-center border-2 transition-all ${item ? RARITY_COLORS[item.rarity] : 'border-accent/20 bg-background/50'} relative group cursor-pointer`}
         onClick={() => item && handleUnequip(type)}
         onMouseEnter={() => audio.playSFX('hover')}
@@ -92,7 +93,7 @@ export const EquipmentPage: React.FC = () => {
         ) : (
           <div className="opacity-30">{icon}</div>
         )}
-        
+
         {item && (
           <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
             <span className="text-xs font-bold text-white">QUITAR</span>
@@ -120,19 +121,20 @@ export const EquipmentPage: React.FC = () => {
             <CardTitle className="font-display text-xl text-white tracking-widest uppercase">Tu Espectro</CardTitle>
           </CardHeader>
           <CardContent className="pt-8 pb-12 flex flex-col items-center gap-8">
-            <Avatar className="w-32 h-32 border-4 border-accent clip-hex shadow-[0_0_30px_rgba(0,240,255,0.2)]">
-              <AvatarImage src={profile?.photoURL || user?.photoURL || ''} className="object-cover" />
-              <AvatarFallback className="bg-secondary text-accent font-display text-4xl">
-                {profile?.specterName?.[0] || 'E'}
-              </AvatarFallback>
-            </Avatar>
+            {/* AVATAR VISUAL TIPO DIABLO */}
+            <CharacterAvatar
+              equippedGear={profile?.equippedGear}
+              specterName={profile?.specterName}
+              photoURL={profile?.photoURL || user?.photoURL || ''}
+              className="w-full"
+            />
 
             <div className="flex justify-center gap-4 w-full">
               {renderSlot('weapon', profile?.equippedGear?.weapon, <Sword className="w-8 h-8" />, 'Arma')}
               {renderSlot('armor', profile?.equippedGear?.armor, <Shield className="w-8 h-8" />, 'Armadura')}
               {renderSlot('artifact', profile?.equippedGear?.artifact, <Gem className="w-8 h-8" />, 'Artefacto')}
             </div>
-            
+
             <div className="w-full bg-background/50 border border-accent/20 p-4 clip-diagonal text-center space-y-2">
               <h4 className="font-mono text-accent text-xs tracking-widest">BONIFICACIONES TOTALES</h4>
               <div className="flex justify-center gap-4 text-sm font-bold">
@@ -156,8 +158,8 @@ export const EquipmentPage: React.FC = () => {
               <Package className="w-5 h-5 text-accent" /> Inventario & Mercado Negro
             </CardTitle>
             <div className="flex items-center gap-4">
-              <span className="text-xs font-mono text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3"/> {profile?.obolos || 0}</span>
-              <span className="text-xs font-mono text-cyan-400 flex items-center gap-1"><Sparkles className="w-3 h-3"/> {profile?.starFragments || 0}</span>
+              <span className="text-xs font-mono text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3" /> {profile?.obolos || 0}</span>
+              <span className="text-xs font-mono text-cyan-400 flex items-center gap-1"><Sparkles className="w-3 h-3" /> {profile?.starFragments || 0}</span>
               <span className="text-xs font-mono text-muted-foreground">{profile?.gearInventory?.length || 0} OBJETOS</span>
             </div>
           </CardHeader>
@@ -169,14 +171,14 @@ export const EquipmentPage: React.FC = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {profile.gearInventory.map((item) => {
-                  const isEquipped = 
+                  const isEquipped =
                     profile.equippedGear?.weapon?.id === item.id ||
                     profile.equippedGear?.armor?.id === item.id ||
                     profile.equippedGear?.artifact?.id === item.id;
 
                   return (
-                    <div 
-                      key={item.id} 
+                    <div
+                      key={item.id}
                       className={`p-4 border clip-diagonal flex flex-col justify-between gap-4 transition-all ${isEquipped ? 'border-accent/50 bg-accent/10 opacity-50' : `border-accent/20 bg-background/60 hover:border-accent ${RARITY_COLORS[item.rarity].split(' ')[0]}`}`}
                     >
                       <div>
@@ -196,10 +198,10 @@ export const EquipmentPage: React.FC = () => {
                           <div className="text-[10px] text-yellow-500/80 font-mono">Set: {item.set}</div>
                         )}
                       </div>
-                      
+
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           disabled={isEquipped}
                           className="flex-1 clip-diagonal font-mono text-xs tracking-widest uppercase border-accent/30 hover:bg-accent/20 hover:text-accent"
@@ -209,8 +211,8 @@ export const EquipmentPage: React.FC = () => {
                           {isEquipped ? 'Equipado' : 'Equipar'}
                         </Button>
                         {!isEquipped && (
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             className="clip-diagonal font-mono text-xs tracking-widest uppercase border-red-500/30 text-red-400 hover:bg-red-500/20 hover:text-red-300"
                             onClick={() => handleSell(item)}
