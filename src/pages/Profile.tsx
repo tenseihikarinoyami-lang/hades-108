@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Shield, Target, Zap, Fingerprint, Cpu, AlertCircle, Medal, Crosshair, Flag } from 'lucide-react';
+import { Shield, Target, Zap, Fingerprint, Cpu, AlertCircle, Medal, Crosshair, Flag, PackageOpen, Sparkles, Swords, Shield as ShieldIcon, Scroll } from 'lucide-react';
 import { audio } from '@/lib/audio';
 
 const FACTIONS = [
@@ -342,5 +342,115 @@ export const Profile: React.FC = () => {
         </Card>
       </div>
     </div>
+
+    {/* Inventario de Equipo y Recursos */ }
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+    {/* Fragmentos de Memoria y Recursos */}
+    <Card className="glass-panel border-accent/20 clip-card relative overflow-hidden">
+      <div className="absolute inset-0 scanline opacity-10 pointer-events-none" />
+      <CardHeader className="border-b border-accent/10 pb-4">
+        <CardTitle className="font-display text-lg text-accent flex items-center gap-2">
+          <Sparkles className="w-5 h-5" /> Recursos del Inframundo
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Memory Fragments */}
+          <div className="bg-background/50 border border-cyan-500/30 p-4 clip-diagonal text-center space-y-2">
+            <Sparkles className="w-8 h-8 text-cyan-400 mx-auto" />
+            <div className="text-2xl font-bold text-cyan-400 font-display">
+              {profile.memoryFragments || 0}
+            </div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              Fragmentos de Memoria
+            </div>
+          </div>
+
+          {/* Obolos */}
+          <div className="bg-background/50 border border-yellow-500/30 p-4 clip-diagonal text-center space-y-2">
+            <Swords className="w-8 h-8 text-yellow-400 mx-auto" />
+            <div className="text-2xl font-bold text-yellow-400 font-display">
+              {profile.obolos || 0}
+            </div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              Óbolos
+            </div>
+          </div>
+
+          {/* Star Fragments */}
+          <div className="bg-background/50 border border-pink-500/30 p-4 clip-diagonal text-center space-y-2">
+            <Target className="w-8 h-8 text-pink-400 mx-auto" />
+            <div className="text-2xl font-bold text-pink-400 font-display">
+              {profile.starFragments || 0}
+            </div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              Fragmentos Estelares
+            </div>
+          </div>
+
+          {/* Battle Pass Points */}
+          <div className="bg-background/50 border border-purple-500/30 p-4 clip-diagonal text-center space-y-2">
+            <Zap className="w-8 h-8 text-purple-400 mx-auto" />
+            <div className="text-2xl font-bold text-purple-400 font-display">
+              {profile.passPoints || 0}
+            </div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              Puntos de Pase
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    {/* Inventario de Equipo */}
+    <Card className="glass-panel border-accent/20 clip-card relative overflow-hidden">
+      <div className="absolute inset-0 scanline opacity-10 pointer-events-none" />
+      <CardHeader className="border-b border-accent/10 pb-4">
+        <CardTitle className="font-display text-lg text-accent flex items-center gap-2">
+          <PackageOpen className="w-5 h-5" /> Inventario de Equipo
+        </CardTitle>
+        <CardDescription className="text-xs">
+          {profile.gearInventory?.length || 0} objetos
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pt-6">
+        {profile.gearInventory && profile.gearInventory.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+            {profile.gearInventory.slice(0, 8).map((item, idx) => {
+              const rarityColor = item.rarity === 'Legendario' ? 'border-yellow-500/50 bg-yellow-500/10' :
+                item.rarity === 'Épico' ? 'border-purple-500/50 bg-purple-500/10' :
+                  item.rarity === 'Raro' ? 'border-blue-500/50 bg-blue-500/10' :
+                    'border-gray-500/50 bg-gray-500/10';
+
+              return (
+                <div key={idx} className={`border ${rarityColor} p-3 clip-diagonal space-y-2 cursor-pointer hover:scale-105 transition-transform`}>
+                  <div className="text-center">
+                    {item.type === 'weapon' && <Swords className="w-6 h-6 mx-auto text-accent" />}
+                    {item.type === 'armor' && <ShieldIcon className="w-6 h-6 mx-auto text-accent" />}
+                    {item.type === 'artifact' && <Sparkles className="w-6 h-6 mx-auto text-accent" />}
+                  </div>
+                  <div className="text-[10px] font-bold text-white uppercase tracking-wider truncate">
+                    {item.name}
+                  </div>
+                  <div className="text-[9px] text-muted-foreground">
+                    {item.rarity}
+                  </div>
+                </div>
+              );
+            })}
+            {profile.gearInventory.length > 8 && (
+              <div className="border border-accent/30 p-3 clip-diagonal flex items-center justify-center text-muted-foreground text-xs">
+                +{profile.gearInventory.length - 8} más
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground font-mono text-center py-8">
+            Inventario vacío. Derrota enemigos en la Arena para obtener equipo.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  </div>
   );
 };

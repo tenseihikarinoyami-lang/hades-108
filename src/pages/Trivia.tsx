@@ -244,10 +244,17 @@ export const Trivia: React.FC = () => {
         const droppedLoot = rollLoot(isBossStage);
         if (droppedLoot && user && profile) {
           setLastLoot(droppedLoot);
+
+          // Update Firestore AND local profile state
+          const newInventory = [...(profile.gearInventory || []), droppedLoot];
           const docRef = doc(db, 'users', user.uid);
-          updateDoc(docRef, {
-            gearInventory: [...(profile.gearInventory || []), droppedLoot]
+          await updateDoc(docRef, {
+            gearInventory: newInventory
           });
+
+          // IMPORTANT: Sync to local profile state
+          await updateProfile({ gearInventory: newInventory });
+
           toast(`¡Botín Obtenido! ${droppedLoot.name}`, {
             icon: <PackageOpen className={`w-5 h-5 ${RARITY_COLORS[droppedLoot.rarity].split(' ')[0]}`} />,
             style: { background: 'rgba(0,0,0,0.8)', border: `1px solid currentColor`, color: '#fff' }
@@ -260,9 +267,17 @@ export const Trivia: React.FC = () => {
       // Memory Fragment Drop Logic (5% chance)
       if (Math.random() < 0.05 && user) {
         const docRef = doc(db, 'users', user.uid);
-        updateDoc(docRef, {
+        const currentFragments = profile.memoryFragments || 0;
+        const newFragments = currentFragments + 1;
+
+        // Update Firestore AND local profile state
+        await updateDoc(docRef, {
           memoryFragments: increment(1)
         });
+
+        // IMPORTANT: Sync to local profile state
+        await updateProfile({ memoryFragments: newFragments });
+
         toast("¡Has encontrado un Fragmento de Memoria!", {
           icon: <Sparkles className="w-5 h-5 text-cyan-400" />,
           style: { background: 'rgba(6, 182, 212, 0.1)', border: '1px solid cyan', color: '#fff' }
