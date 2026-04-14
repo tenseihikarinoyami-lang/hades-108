@@ -36,6 +36,14 @@ export interface UserProfile {
   maxCombo?: number;
   pagesVisited?: number;
   tutorialCompleted?: boolean;
+  fcmToken?: string;
+  notificationsEnabled?: boolean;
+  // SEASONAL RANKINGS
+  seasonalScore?: number;
+  seasonalRank?: string;
+  // MENTOR SYSTEM
+  mentorId?: string;
+  apprenticeIds?: string[];
   titles?: string[];
   activeTitle?: string;
   inventory?: string[];
