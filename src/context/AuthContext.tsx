@@ -35,6 +35,7 @@ export interface UserProfile {
   prestigePoints?: number;
   maxCombo?: number;
   pagesVisited?: number;
+  tutorialCompleted?: boolean;
   titles?: string[];
   activeTitle?: string;
   inventory?: string[];

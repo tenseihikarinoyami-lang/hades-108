@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LogOut, User, MessageSquare, Gamepad2, Home, Trophy, Flame, Volume2, VolumeX, Store as StoreIcon, Shield, Swords, Hammer, Castle, Skull, Star, FlaskConical, Map, EyeOff, Crown, ArrowUpCircle, Users, BookOpen, ChevronDown, Zap, Dog, Anchor, Activity, Menu, X } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { getCurrentCataclysm } from '@/lib/cataclysms';
+import { Onboarding } from '@/components/Onboarding';
 
 export const Layout: React.FC = () => {
   const { user, profile, loading } = useAuth();
@@ -340,6 +341,9 @@ export const Layout: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* ONBOARDING / TUTORIAL */}
+      {user && <Onboarding />}
     </div>
   );
 };
