@@ -51,6 +51,11 @@ export const Trivia: React.FC = () => {
   const [shieldActive, setShieldActive] = useState(false);
   const [highlightCorrect, setHighlightCorrect] = useState(false);
 
+  // COMBO SYSTEM - Cadena de Victoria
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [showComboPopup, setShowComboPopup] = useState(false);
+
   // Timer Effect
   useEffect(() => {
     if (gameState === 'playing' && timeLeft > 0 && !revealedImage && !isTimeStopped) {
@@ -105,6 +110,11 @@ export const Trivia: React.FC = () => {
     setGameState('playing');
     setPrimordialCurse(null);
     setShuffledOptions([0, 1, 2, 3]);
+
+    // COMBO SYSTEM - Reset combo al iniciar partida
+    setCombo(0);
+    setMaxCombo(0);
+    setShowComboPopup(false);
 
     // Faction Passives Initialization
     const isFirstBoss = !isOracleMode && arena !== 'oracle' && arena.questions.length === 1;
@@ -201,6 +211,27 @@ export const Trivia: React.FC = () => {
     if (isCorrect) {
       audio.playSFX('success');
       setHighlightCorrect(false);
+
+      // COMBO SYSTEM - Incrementar combo
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      if (newCombo > maxCombo) setMaxCombo(newCombo);
+
+      // Combo Multiplier: x1.5 (3+), x2 (5+), x3 (10+)
+      let comboMultiplier = 1.0;
+      if (newCombo >= 10) comboMultiplier = 3.0;
+      else if (newCombo >= 5) comboMultiplier = 2.0;
+      else if (newCombo >= 3) comboMultiplier = 1.5;
+
+      // Show combo popup
+      if (newCombo >= 3) {
+        setShowComboPopup(true);
+        setTimeout(() => setShowComboPopup(false), 1500);
+        toast.success(`🔥 ¡COMBO x${newCombo}! Multiplicador x${comboMultiplier}`, {
+          style: { background: newCombo >= 10 ? 'rgba(255,0,0,0.3)' : 'rgba(255,165,0,0.2)', border: '1px solid orange', color: '#fff' }
+        });
+      }
+
       let pointsEarned = isBossStage ? 50 : 20;
 
       // Elemental Damage Calculation (Player attacks Enemy)
@@ -225,7 +256,8 @@ export const Trivia: React.FC = () => {
       // Class Bonus
       pointsEarned = Math.floor(pointsEarned * classBonus.damage);
 
-      pointsEarned = Math.floor(pointsEarned * multiplier);
+      // COMBO MULTIPLIER aplicado
+      pointsEarned = Math.floor(pointsEarned * multiplier * comboMultiplier);
 
       setScore(s => s + pointsEarned);
       setHiddenOptions([]); // Reset hidden options for next question
@@ -289,6 +321,14 @@ export const Trivia: React.FC = () => {
         moveToNextQuestion(true);
       }, 2500);
     } else {
+      // COMBO SYSTEM - Reset combo al fallar
+      if (combo >= 5) {
+        toast.error(`💔 ¡Combo roto! Terminaste con x${combo} respuestas consecutivas.`, {
+          style: { background: 'rgba(255,0,0,0.2)', border: '1px solid red', color: '#fff' }
+        });
+      }
+      setCombo(0);
+
       if (shieldActive) {
         setShieldActive(false);
         toast.info("¡Escudo de Atenea activado! Daño bloqueado.");
@@ -682,6 +722,18 @@ export const Trivia: React.FC = () => {
               {timeLeft}
             </div>
           </div>
+
+          {/* COMBO DISPLAY */}
+          {combo >= 3 && (
+            <div className="flex flex-col items-center">
+              <div className={`text-2xl font-display font-bold ${combo >= 10 ? 'text-red-500 animate-pulse' : combo >= 5 ? 'text-orange-500' : 'text-yellow-400'} neon-text-primary`}>
+                🔥 x{combo}
+              </div>
+              <div className="text-[9px] text-muted-foreground uppercase tracking-widest">
+                {combo >= 10 ? '¡LEGENDARIO!' : combo >= 5 ? '¡ÉPICO!' : '¡COMBO!'}
+              </div>
+            </div>
+          )}
 
           <div className="flex-1 space-y-2">
             <div className="flex justify-between text-xs font-mono font-bold tracking-widest text-primary">
