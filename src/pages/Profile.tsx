@@ -407,7 +407,7 @@ export const Profile: React.FC = () => {
       </div>
     </div>
 
-    {/* Inventario de Equipo y Recursos */ }
+    {/* Inventario de Equipo y Recursos */}
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
     {/* Fragmentos de Memoria y Recursos */}
     <Card className="glass-panel border-accent/20 clip-card relative overflow-hidden">
