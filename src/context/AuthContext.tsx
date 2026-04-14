@@ -110,6 +110,7 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  setProfile: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
@@ -117,6 +118,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  setProfile: () => { },
   updateProfile: async () => { },
 });
 
@@ -350,7 +352,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, updateProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, setProfile, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getCurrentCataclysm } from '@/lib/cataclysms';
 
 export const Trivia: React.FC = () => {
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile, setProfile, updateProfile } = useAuth();
 
   // Selection State
   const [selectedLevel, setSelectedLevel] = useState<TriviaLevel | null>(null);
@@ -277,15 +277,23 @@ export const Trivia: React.FC = () => {
         if (droppedLoot && user && profile) {
           setLastLoot(droppedLoot);
 
-          // Update Firestore AND local profile state
-          const newInventory = [...(profile.gearInventory || []), droppedLoot];
+          // CRITICAL FIX: Usar updateDoc para agregar al array en lugar de reemplazar
           const docRef = doc(db, 'users', user.uid);
+          const currentInventory = profile.gearInventory || [];
+          const newInventory = [...currentInventory, droppedLoot];
+
+          // Primero actualizar Firestore
           await updateDoc(docRef, {
             gearInventory: newInventory
           });
 
-          // IMPORTANT: Sync to local profile state
-          await updateProfile({ gearInventory: newInventory });
+          // INMEDIATAMENTE después actualizar estado local
+          // Usar functional update para evitar race conditions
+          setProfile(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev, gearInventory: newInventory };
+            return updated;
+          });
 
           toast(`¡Botín Obtenido! ${droppedLoot.name}`, {
             icon: <PackageOpen className={`w-5 h-5 ${RARITY_COLORS[droppedLoot.rarity].split(' ')[0]}`} />,
@@ -297,18 +305,21 @@ export const Trivia: React.FC = () => {
       }
 
       // Memory Fragment Drop Logic (5% chance)
-      if (Math.random() < 0.05 && user) {
+      if (Math.random() < 0.05 && user && profile) {
         const docRef = doc(db, 'users', user.uid);
         const currentFragments = profile.memoryFragments || 0;
         const newFragments = currentFragments + 1;
 
-        // Update Firestore AND local profile state
+        // Primero actualizar Firestore con increment
         await updateDoc(docRef, {
           memoryFragments: increment(1)
         });
 
-        // IMPORTANT: Sync to local profile state
-        await updateProfile({ memoryFragments: newFragments });
+        // INMEDIATAMENTE después actualizar estado local
+        setProfile(prev => {
+          if (!prev) return prev;
+          return { ...prev, memoryFragments: newFragments };
+        });
 
         toast("¡Has encontrado un Fragmento de Memoria!", {
           icon: <Sparkles className="w-5 h-5 text-cyan-400" />,
