@@ -51,30 +51,71 @@ export const Chat: React.FC = () => {
   };
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'messages'),
-      orderBy('createdAt', 'asc'),
-      limit(100)
-    );
+    // Global messages listener
+    if (activeTab === 'global') {
+      const q = query(
+        collection(db, 'messages'),
+        orderBy('createdAt', 'asc'),
+        limit(100)
+      );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() } as Message);
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const msgs: Message[] = [];
+        snapshot.forEach((doc) => {
+          msgs.push({ id: doc.id, ...doc.data() } as Message);
+        });
+        setMessages(msgs);
+        // Scroll to bottom
+        setTimeout(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+        }, 100);
+      }, (error) => {
+        console.error("Error fetching messages:", error);
       });
-      setMessages(msgs);
-      // Scroll to bottom
-      setTimeout(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      }, 100);
-    }, (error) => {
-      console.error("Error fetching messages:", error);
-    });
 
-    return () => unsubscribe();
-  }, []);
+      return () => unsubscribe();
+    }
+
+    // Private messages listener
+    if (activeTab === 'private' && user) {
+      const q = query(
+        collection(db, 'private_messages'),
+        orderBy('createdAt', 'asc'),
+        limit(100)
+      );
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const msgs: Message[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // Only show messages from/to current user
+          if (data.uid === user.uid || data.receiverId === user.uid || data.senderId === user.uid) {
+            msgs.push({
+              id: doc.id,
+              text: data.text,
+              uid: data.uid,
+              specterName: data.specterName || 'Espectro',
+              photoURL: data.photoURL || '',
+              createdAt: data.createdAt
+            } as Message);
+          }
+        });
+        setMessages(msgs);
+        // Scroll to bottom
+        setTimeout(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+        }, 100);
+      }, (error) => {
+        console.error("Error fetching private messages:", error);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [activeTab, user]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,18 +169,18 @@ export const Chat: React.FC = () => {
             <p className="text-xs text-accent/70 font-mono tracking-widest uppercase">Frecuencia Encriptada del Inframundo</p>
           </div>
         </div>
-        
+
         <div className="flex gap-2 bg-background/50 p-1 border border-accent/20 clip-diagonal">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className={`clip-diagonal rounded-none px-6 font-mono tracking-widest uppercase text-xs transition-all ${activeTab === 'global' ? 'bg-accent/20 text-accent border border-accent/50' : 'text-muted-foreground hover:text-white'}`}
             onClick={() => { audio.playSFX('click'); setActiveTab('global'); }}
             onMouseEnter={() => audio.playSFX('hover')}
           >
             <Globe className="w-4 h-4 mr-2" /> Global
           </Button>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             className={`clip-diagonal rounded-none px-6 font-mono tracking-widest uppercase text-xs transition-all ${activeTab === 'private' ? 'bg-primary/20 text-primary border border-primary/50' : 'text-muted-foreground hover:text-white'}`}
             onClick={() => { audio.playSFX('click'); setActiveTab('private'); }}
             onMouseEnter={() => audio.playSFX('hover')}
@@ -148,11 +189,11 @@ export const Chat: React.FC = () => {
           </Button>
         </div>
       </div>
-      
+
       <Card className="flex-1 flex flex-col glass-panel border-accent/30 overflow-hidden relative clip-card">
         {/* Scanline effect overlay */}
         <div className="absolute inset-0 scanline opacity-30 pointer-events-none z-20" />
-        
+
         <CardHeader className="border-b border-accent/20 bg-background/40 py-3 z-30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-mono text-accent">
@@ -168,45 +209,44 @@ export const Chat: React.FC = () => {
         {activeTab === 'global' || (activeTab === 'private' && privateChatUser) ? (
           <>
             <ScrollArea className="flex-1 p-6 z-10" ref={scrollRef}>
-          <div className="space-y-6">
-            {messages.map((msg) => {
-              const isMe = msg.uid === user?.uid;
-              return (
-                <div key={msg.id} className={`flex gap-4 ${isMe ? 'flex-row-reverse' : ''}`}>
-                  <Avatar className="w-12 h-12 border-2 border-accent/50 clip-hex bg-background/80 shadow-[0_0_10px_rgba(0,240,255,0.2)]">
-                    <AvatarImage src={msg.photoURL} className="object-cover" />
-                    <AvatarFallback className="bg-secondary text-accent font-display text-xl">
-                      {msg.specterName?.[0] || 'E'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
-                    <div className="flex items-baseline gap-2 mb-1">
-                      <span className="text-xs font-mono text-accent/80 tracking-wider">
-                        {isMe ? 'TÚ' : msg.specterName.toUpperCase()}
-                      </span>
-                      <span className="text-[10px] font-mono text-muted-foreground">
-                        [SYS.TIME: {msg.createdAt?.toDate ? format(msg.createdAt.toDate(), 'HH:mm:ss') : '00:00:00'}]
-                      </span>
+              <div className="space-y-6">
+                {messages.map((msg) => {
+                  const isMe = msg.uid === user?.uid;
+                  return (
+                    <div key={msg.id} className={`flex gap-4 ${isMe ? 'flex-row-reverse' : ''}`}>
+                      <Avatar className="w-12 h-12 border-2 border-accent/50 clip-hex bg-background/80 shadow-[0_0_10px_rgba(0,240,255,0.2)]">
+                        <AvatarImage src={msg.photoURL} className="object-cover" />
+                        <AvatarFallback className="bg-secondary text-accent font-display text-xl">
+                          {msg.specterName?.[0] || 'E'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%]`}>
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="text-xs font-mono text-accent/80 tracking-wider">
+                            {isMe ? 'TÚ' : msg.specterName.toUpperCase()}
+                          </span>
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            [SYS.TIME: {msg.createdAt?.toDate ? format(msg.createdAt.toDate(), 'HH:mm:ss') : '00:00:00'}]
+                          </span>
+                        </div>
+                        <div className={`p-4 font-sans text-sm tracking-wide relative group ${isMe
+                            ? 'bg-primary/20 text-white border-r-2 border-primary clip-diagonal'
+                            : 'bg-secondary/40 text-white border-l-2 border-accent clip-diagonal'
+                          }`}>
+                          {msg.text}
+                        </div>
+                      </div>
                     </div>
-                    <div className={`p-4 font-sans text-sm tracking-wide relative group ${
-                      isMe 
-                        ? 'bg-primary/20 text-white border-r-2 border-primary clip-diagonal' 
-                        : 'bg-secondary/40 text-white border-l-2 border-accent clip-diagonal'
-                    }`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
             </ScrollArea>
-            
+
             <div className="p-4 border-t border-accent/20 bg-background/60 z-30">
               <form onSubmit={handleSend} className="flex gap-3">
                 <div className="relative flex-1">
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 text-accent font-mono text-sm">{'>'}</div>
-                  <Input 
+                  <Input
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Ingresa comando de transmisión..."
@@ -227,9 +267,9 @@ export const Chat: React.FC = () => {
               <h3 className="text-xl font-display text-white tracking-widest uppercase">Transmisión Privada</h3>
               <p className="text-sm text-muted-foreground font-mono">Busca a un Espectro para establecer un canal seguro.</p>
             </div>
-            
+
             <form onSubmit={handleSearch} className="flex gap-2 max-w-md mx-auto w-full">
-              <Input 
+              <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Nombre del Espectro..."
@@ -242,8 +282,8 @@ export const Chat: React.FC = () => {
 
             <div className="max-w-md mx-auto w-full space-y-2">
               {searchResults.map((result) => (
-                <div 
-                  key={result.uid} 
+                <div
+                  key={result.uid}
                   className="flex items-center gap-4 p-3 bg-background/40 border border-accent/20 hover:border-accent/50 clip-diagonal cursor-pointer transition-all group"
                   onClick={() => { audio.playSFX('click'); setPrivateChatUser(result); }}
                   onMouseEnter={() => audio.playSFX('hover')}

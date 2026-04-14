@@ -69,12 +69,68 @@ service cloud.firestore {
     // Trivia Scores Collection
     match /triviaScores/{scoreId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidTriviaScore(request.resource.data) && 
+      allow create: if isAuthenticated() && isValidTriviaScore(request.resource.data) &&
                     request.resource.data.uid == request.auth.uid;
-      allow update: if isAuthenticated() && isValidTriviaScore(request.resource.data) && 
+      allow update: if isAuthenticated() && isValidTriviaScore(request.resource.data) &&
                     request.resource.data.uid == request.auth.uid &&
                     request.resource.data.uid == resource.data.uid;
       allow delete: if isAdmin();
+    }
+
+    // Auction Listings Collection
+    match /auction_listings/{listingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.sellerId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.sellerId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+
+    // Guilds Collection
+    match /guilds/{guildId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Guild Nodes Collection
+    match /guildNodes/{nodeId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Game State Collection (Territories, etc.)
+    match /game_state/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // Faction Bases Collection
+    match /faction_bases/{baseId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // PvP Challenges Collection
+    match /pvp_challenges/{challengeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.challengerId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.challengerId == request.auth.uid || resource.data.defenderId == request.auth.uid);
+      allow delete: if isAuthenticated() && (resource.data.challengerId == request.auth.uid || isAdmin());
+    }
+
+    // World Boss Collection
+    match /world_boss/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // Private Messages Collection
+    match /private_messages/{msgId} {
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+      allow update: if false; // Messages cannot be edited
+      allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
     }
   }
 }

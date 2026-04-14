@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -33,7 +33,7 @@ export const GalacticWar: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<PvPChallenge[]>([]);
   const [gameState, setGameState] = useState<'lobby' | 'playing' | 'result'>('lobby');
-  
+
   // Active Match State
   const [activeChallenge, setActiveChallenge] = useState<PvPChallenge | null>(null);
   const [currentQ, setCurrentQ] = useState(0);
@@ -78,7 +78,7 @@ export const GalacticWar: React.FC = () => {
 
   const initiateChallenge = async (targetUser: any) => {
     if (!user || !profile) return;
-    
+
     setIsGenerating(true);
     const generated = await generateInfiniteTrivia('Espectro', 5);
     if (generated.length === 0) {
@@ -122,17 +122,17 @@ export const GalacticWar: React.FC = () => {
 
   const handleAnswer = (selectedIndex: number) => {
     if (!activeChallenge) return;
-    
+
     const q = activeChallenge.questions[currentQ];
     const isCorrect = selectedIndex === q.answer;
-    
+
     if (isCorrect) {
       audio.playSFX('success');
       setScore(s => s + 100);
     } else {
       audio.playSFX('damage');
     }
-    
+
     if (currentQ + 1 < activeChallenge.questions.length) {
       setCurrentQ(prev => prev + 1);
     } else {
@@ -142,12 +142,12 @@ export const GalacticWar: React.FC = () => {
 
   const finishMatch = async () => {
     if (!user || !activeChallenge) return;
-    
+
     setGameState('result');
-    
+
     const isChallenger = activeChallenge.challengerId === user.uid;
     const challengeRef = doc(db, 'pvp_challenges', activeChallenge.id);
-    
+
     if (isChallenger) {
       // Save initial challenge
       await setDoc(challengeRef, {
@@ -160,7 +160,7 @@ export const GalacticWar: React.FC = () => {
       // Complete challenge
       const challengerScore = activeChallenge.challengerScore;
       const challengerTime = activeChallenge.challengerTime;
-      
+
       let winnerId = '';
       if (score > challengerScore) winnerId = user.uid;
       else if (challengerScore > score) winnerId = activeChallenge.challengerId;
@@ -170,18 +170,18 @@ export const GalacticWar: React.FC = () => {
         else if (challengerTime < timeSpent) winnerId = activeChallenge.challengerId;
         else winnerId = 'tie';
       }
-      
+
       await updateDoc(challengeRef, {
         targetScore: score,
         targetTime: timeSpent,
         status: 'completed',
         winnerId
       });
-      
+
       // Reward winner (simplified)
       if (winnerId === user.uid) {
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { obolos: (profile?.obolos || 0) + 50 });
+        await updateDoc(userRef, { obolos: increment(50) });
         toast.success("¡Has ganado el duelo! +50 Óbolos");
       } else if (winnerId !== 'tie') {
         toast.error("Has perdido el duelo.");
@@ -189,7 +189,7 @@ export const GalacticWar: React.FC = () => {
         toast("Empate técnico.");
       }
     }
-    
+
     fetchChallenges();
   };
 
@@ -219,7 +219,7 @@ export const GalacticWar: React.FC = () => {
                   const isChallenger = c.challengerId === user?.uid;
                   const opponentName = isChallenger ? c.targetName : c.challengerName;
                   const opponentPhoto = isChallenger ? c.targetPhoto : c.challengerPhoto;
-                  
+
                   return (
                     <div key={c.id} className="p-4 border border-accent/20 clip-diagonal bg-background/50 flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -234,7 +234,7 @@ export const GalacticWar: React.FC = () => {
                           </p>
                         </div>
                       </div>
-                      
+
                       {c.status === 'pending' && !isChallenger && (
                         <Button onClick={() => acceptChallenge(c)} className="bg-cyan-600 hover:bg-cyan-500 text-white clip-diagonal text-xs">
                           Aceptar
@@ -280,10 +280,10 @@ export const GalacticWar: React.FC = () => {
                       <p className="text-xs font-mono text-muted-foreground">Facción: {u.faction || 'Ninguna'}</p>
                     </div>
                   </div>
-                  <Button 
-                    onClick={() => initiateChallenge(u)} 
+                  <Button
+                    onClick={() => initiateChallenge(u)}
                     disabled={isGenerating}
-                    variant="outline" 
+                    variant="outline"
                     className="border-accent text-accent hover:bg-accent/20 clip-diagonal text-xs"
                   >
                     Retar
@@ -306,15 +306,15 @@ export const GalacticWar: React.FC = () => {
           <span className="font-mono text-white">Tiempo: {timeSpent}s</span>
           <span className="font-mono text-green-400">Puntos: {score}</span>
         </div>
-        
+
         <Card className="glass-panel border-cyan-500/50 clip-card p-8 relative overflow-hidden">
           <div className="absolute inset-0 bg-cyan-900/10 pointer-events-none" />
           <h3 className="text-xl font-sans font-bold text-white mb-8 text-center relative z-10">{q.q}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
             {q.options.map((opt, idx) => (
-              <Button 
-                key={idx} 
-                variant="outline" 
+              <Button
+                key={idx}
+                variant="outline"
                 className="h-auto py-4 text-lg font-sans tracking-wide border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-500/20 transition-all clip-diagonal"
                 onClick={() => handleAnswer(idx)}
               >
