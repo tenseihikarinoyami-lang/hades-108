@@ -64,7 +64,7 @@ export const Fishing: React.FC = () => {
           materialsUpdate.stardust = (materialsUpdate.stardust || 0) + 1;
         } else if (roll > 0.6) {
           caught = 'Esencia de Almas';
-          materialsUpdate.soulEsence = (materialsUpdate.soulEsence || 0) + 1;
+          materialsUpdate.soulEssence = (materialsUpdate.soulEssence || 0) + 1;
         } else {
           caught = 'Óbolos (x200)';
         }

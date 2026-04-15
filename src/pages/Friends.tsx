@@ -40,7 +40,14 @@ export const Friends: React.FC = () => {
   const handleAddFriend = async (targetUserId: string, targetName: string, targetPhoto: string) => {
     if (!user) return;
     audio.playSFX('click');
-    const result = await sendFriendRequest(user.uid, profile?.specterName || 'Espectro', profile?.photoURL || '', targetUserId);
+    const result = await sendFriendRequest(
+      user.uid,
+      profile?.specterName || profile?.displayName || 'Espectro',
+      profile?.photoURL || '',
+      targetUserId,
+      targetName,
+      targetPhoto
+    );
     if (result.success) {
       toast.success(result.message);
     } else {
@@ -49,8 +56,14 @@ export const Friends: React.FC = () => {
   };
 
   const handleAcceptRequest = async (friendshipId: string) => {
+    if (!user) return;
     audio.playSFX('click');
-    await acceptFriendRequest(friendshipId);
+    await acceptFriendRequest(
+      friendshipId,
+      user.uid,
+      profile?.specterName || profile?.displayName || 'Espectro',
+      profile?.photoURL || ''
+    );
     toast.success('Solicitud aceptada');
   };
 
@@ -233,6 +246,7 @@ export const Friends: React.FC = () => {
                       size="sm"
                       className="clip-diagonal bg-accent/20 text-accent hover:bg-accent/30 border border-accent/50"
                       onClick={() => handleAddFriend(result.uid, result.displayName, result.photoURL)}
+                      disabled={result.uid === user?.uid}
                     >
                       <UserPlus className="w-4 h-4 mr-1" /> Agregar
                     </Button>

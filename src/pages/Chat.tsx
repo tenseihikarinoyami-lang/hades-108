@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp, where, getDocs } from 'firebase/firestore';
+import { addDoc, collection, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,8 @@ export const Chat: React.FC = () => {
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleSearch = async () => {
+  const handleSearch = async (event?: React.FormEvent) => {
+    event?.preventDefault();
     if (!searchQuery.trim()) return;
     try {
       const q = query(
@@ -43,7 +44,11 @@ export const Chat: React.FC = () => {
       );
       const snap = await getDocs(q);
       const results: UserProfile[] = [];
-      snap.forEach(doc => results.push(doc.data() as UserProfile));
+      snap.forEach(doc => {
+        if (doc.id !== user?.uid) {
+          results.push(doc.data() as UserProfile);
+        }
+      });
       setSearchResults(results);
     } catch (error) {
       console.error("Search error:", error);
@@ -79,29 +84,32 @@ export const Chat: React.FC = () => {
     }
 
     // Private messages listener
-    if (activeTab === 'private' && user) {
+    if (activeTab === 'private' && user && privateChatUser) {
+      const chatId = [user.uid, privateChatUser.uid].sort().join('_');
       const q = query(
         collection(db, 'private_messages'),
-        orderBy('createdAt', 'asc'),
+        where('chatId', '==', chatId),
         limit(100)
       );
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        const msgs: Message[] = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          // Only show messages from/to current user
-          if (data.uid === user.uid || data.receiverId === user.uid || data.senderId === user.uid) {
-            msgs.push({
-              id: doc.id,
+        const msgs: Message[] = snapshot.docs
+          .map((messageDoc) => {
+            const data = messageDoc.data();
+            return {
+              id: messageDoc.id,
               text: data.text,
               uid: data.uid,
               specterName: data.specterName || 'Espectro',
               photoURL: data.photoURL || '',
               createdAt: data.createdAt
-            } as Message);
-          }
-        });
+            } as Message;
+          })
+          .sort((a, b) => {
+            const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+            const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+            return timeA - timeB;
+          });
         setMessages(msgs);
         // Scroll to bottom
         setTimeout(() => {
@@ -115,7 +123,7 @@ export const Chat: React.FC = () => {
 
       return () => unsubscribe();
     }
-  }, [activeTab, user]);
+  }, [activeTab, privateChatUser, user]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +148,8 @@ export const Chat: React.FC = () => {
           chatId,
           text: msgText,
           uid: user.uid,
+          senderId: user.uid,
+          receiverId: privateChatUser.uid,
           specterName: profile.specterName || profile.displayName || 'Espectro Desconocido',
           photoURL: profile.photoURL || user.photoURL || '',
           createdAt: serverTimestamp()

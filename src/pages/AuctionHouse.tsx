@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, updateDoc, increment, serverTimestamp, orderBy } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, doc, increment, onSnapshot, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Store, Tag, Coins, Clock, User, Shield, Search, Filter } from 'lucide-react';
+import { Store, Tag, Coins, Clock, Shield, Search, Filter } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { Equipment, RARITY_COLORS } from '@/lib/rpg';
 import { motion, AnimatePresence } from 'motion/react';
@@ -20,7 +20,7 @@ interface AuctionListing {
 }
 
 export const AuctionHouse: React.FC = () => {
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile } = useAuth();
   const [listings, setListings] = useState<AuctionListing[]>([]);
   const [isListing, setIsListing] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
@@ -49,18 +49,21 @@ export const AuctionHouse: React.FC = () => {
     setIsListing(true);
     audio.playSFX('click');
     try {
-      // Remove from inventory
-      const newInventory = profile.gearInventory?.filter(i => i.id !== selectedItem.id) || [];
-      await updateProfile({ gearInventory: newInventory });
+      const batch = writeBatch(db);
+      const listingRef = doc(collection(db, 'auction_listings'));
+      const userRef = doc(db, 'users', user.uid);
 
-      // Add to auction
-      await addDoc(collection(db, 'auction_listings'), {
+      batch.update(userRef, {
+        gearInventory: arrayRemove(selectedItem)
+      });
+      batch.set(listingRef, {
         sellerId: user.uid,
         sellerName: profile.specterName || profile.displayName || 'Espectro',
         item: selectedItem,
         price: price,
         createdAt: serverTimestamp()
       });
+      await batch.commit();
 
       toast.success("Objeto listado en la subasta.");
       setSelectedItem(null);
@@ -84,20 +87,19 @@ export const AuctionHouse: React.FC = () => {
 
     audio.playSFX('success');
     try {
-      // Deduct from buyer, add item
-      await updateProfile({
-        obolos: (profile.obolos || 0) - listing.price,
-        gearInventory: [...(profile.gearInventory || []), listing.item]
-      });
-
-      // Add obolos to seller (offline update)
+      const batch = writeBatch(db);
+      const buyerRef = doc(db, 'users', user.uid);
       const sellerRef = doc(db, 'users', listing.sellerId);
-      await updateDoc(sellerRef, {
+
+      batch.update(buyerRef, {
+        obolos: increment(-listing.price),
+        gearInventory: arrayUnion(listing.item)
+      });
+      batch.update(sellerRef, {
         obolos: increment(listing.price)
       });
-
-      // Delete listing
-      await deleteDoc(doc(db, 'auction_listings', listing.id));
+      batch.delete(doc(db, 'auction_listings', listing.id));
+      await batch.commit();
 
       toast.success(`¡Has comprado ${listing.item.name}!`);
     } catch (error) {
@@ -110,13 +112,12 @@ export const AuctionHouse: React.FC = () => {
 
     audio.playSFX('click');
     try {
-      // Return to inventory
-      await updateProfile({
-        gearInventory: [...(profile.gearInventory || []), listing.item]
+      const batch = writeBatch(db);
+      batch.update(doc(db, 'users', user.uid), {
+        gearInventory: arrayUnion(listing.item)
       });
-
-      // Delete listing
-      await deleteDoc(doc(db, 'auction_listings', listing.id));
+      batch.delete(doc(db, 'auction_listings', listing.id));
+      await batch.commit();
 
       toast.success("Subasta cancelada.");
     } catch (error) {

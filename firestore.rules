@@ -1,136 +1,173 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper Functions
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
     function isAdmin() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Juez' ||
-        (request.auth.token.email == "darkangeldiaz@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Juez' ||
+          (request.auth.token.email == "darkangeldiaz@gmail.com" && request.auth.token.email_verified == true)
+        );
     }
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role', 'score']) &&
-             data.uid is string &&
-             data.email is string &&
-             data.role in ['Juez', 'Espectro'] &&
-             data.score is number &&
-             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 50)) &&
-             (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100)) &&
-             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500));
+        data.uid is string &&
+        data.email is string &&
+        data.role in ['Juez', 'Espectro'] &&
+        data.score is number &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 50)) &&
+        (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500));
     }
 
     function isValidMessage(data) {
       return data.keys().hasAll(['text', 'uid', 'createdAt']) &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
-             data.uid is string &&
-             data.createdAt is timestamp &&
-             (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100)) &&
-             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500));
+        data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
+        data.uid is string &&
+        data.createdAt is timestamp &&
+        (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500));
+    }
+
+    function isValidPrivateMessage(data) {
+      return data.keys().hasAll(['text', 'uid', 'senderId', 'receiverId', 'chatId', 'createdAt']) &&
+        data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
+        data.uid is string &&
+        data.senderId is string &&
+        data.receiverId is string &&
+        data.chatId is string &&
+        data.createdAt is timestamp &&
+        (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100)) &&
+        (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() < 500));
     }
 
     function isValidTriviaScore(data) {
       return data.keys().hasAll(['uid', 'category', 'score', 'updatedAt']) &&
-             data.uid is string &&
-             data.category is string && data.category.size() < 50 &&
-             data.score is number && data.score >= 0 &&
-             data.updatedAt is timestamp &&
-             (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100));
+        data.uid is string &&
+        data.category is string && data.category.size() < 50 &&
+        data.score is number && data.score >= 0 &&
+        data.updatedAt is timestamp &&
+        (!('specterName' in data) || (data.specterName is string && data.specterName.size() < 100));
     }
 
-    // Users Collection
+    function isFriendshipParticipant(data) {
+      return isAuthenticated() &&
+        (data.userId == request.auth.uid || data.friendId == request.auth.uid);
+    }
+
+    function isPrivateMessageParticipant(data) {
+      return isAuthenticated() &&
+        (data.senderId == request.auth.uid || data.receiverId == request.auth.uid);
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
-                    (request.resource.data.role == 'Espectro' || isAdmin());
-      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) &&
-                    (request.resource.data.role == resource.data.role || isAdmin()) &&
-                    request.resource.data.uid == resource.data.uid;
+      allow create: if isAuthenticated() &&
+        isOwner(userId) &&
+        isValidUser(request.resource.data) &&
+        (request.resource.data.role == 'Espectro' || isAdmin());
+      allow update: if isAuthenticated() &&
+        isOwner(userId) &&
+        isValidUser(request.resource.data) &&
+        (request.resource.data.role == resource.data.role || isAdmin()) &&
+        request.resource.data.uid == resource.data.uid;
       allow delete: if isAdmin();
     }
 
-    // Messages Collection
     match /messages/{messageId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidMessage(request.resource.data) && 
-                    request.resource.data.uid == request.auth.uid;
-      allow update: if false; // Messages cannot be edited
+      allow create: if isAuthenticated() &&
+        isValidMessage(request.resource.data) &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if false;
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.uid == request.auth.uid);
     }
 
-    // Trivia Scores Collection
     match /triviaScores/{scoreId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidTriviaScore(request.resource.data) &&
-                    request.resource.data.uid == request.auth.uid;
-      allow update: if isAuthenticated() && isValidTriviaScore(request.resource.data) &&
-                    request.resource.data.uid == request.auth.uid &&
-                    request.resource.data.uid == resource.data.uid;
+      allow create: if isAuthenticated() &&
+        isValidTriviaScore(request.resource.data) &&
+        request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        isValidTriviaScore(request.resource.data) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == resource.data.uid;
       allow delete: if isAdmin();
     }
 
-    // Auction Listings Collection
     match /auction_listings/{listingId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.sellerId == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.sellerId == request.auth.uid;
-      allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated();
     }
 
-    // Guilds Collection
     match /guilds/{guildId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.leaderId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.leaderId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.leaderId == request.auth.uid || isAdmin());
     }
 
-    // Guild Nodes Collection
     match /guildNodes/{nodeId} {
-      allow read: if isAuthenticated();
+      allow read, write: if isAuthenticated();
+    }
+
+    match /game_state/{docId} {
+      allow read: if true;
       allow write: if isAuthenticated();
     }
 
-    // Game State Collection (Territories, etc.)
-    match /game_state/{docId} {
-      allow read: if true;
-      allow write: if isAuthenticated() && isAdmin();
-    }
-
-    // Faction Bases Collection
     match /faction_bases/{baseId} {
       allow read: if true;
-      allow write: if isAuthenticated() && isAdmin();
+      allow write: if isAuthenticated();
     }
 
-    // PvP Challenges Collection
     match /pvp_challenges/{challengeId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.challengerId == request.auth.uid;
-      allow update: if isAuthenticated() && (resource.data.challengerId == request.auth.uid || resource.data.defenderId == request.auth.uid);
-      allow delete: if isAuthenticated() && (resource.data.challengerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        (resource.data.challengerId == request.auth.uid || resource.data.targetId == request.auth.uid);
+      allow delete: if isAuthenticated() &&
+        (resource.data.challengerId == request.auth.uid || resource.data.targetId == request.auth.uid || isAdmin());
     }
 
-    // World Boss Collection
     match /world_boss/{docId} {
       allow read: if true;
-      allow write: if isAuthenticated() && isAdmin();
+      allow write: if isAuthenticated();
     }
 
-    // Private Messages Collection
     match /private_messages/{msgId} {
-      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
-      allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
-      allow update: if false; // Messages cannot be edited
-      allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+      allow read: if isPrivateMessageParticipant(resource.data);
+      allow create: if isAuthenticated() &&
+        isValidPrivateMessage(request.resource.data) &&
+        request.resource.data.senderId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isAuthenticated() &&
+        (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid || isAdmin());
+    }
+
+    match /friendships/{friendshipId} {
+      allow read: if isFriendshipParticipant(resource.data);
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.friendId is string &&
+        request.resource.data.friendId != request.auth.uid;
+      allow update: if isFriendshipParticipant(resource.data) || isAdmin();
+      allow delete: if isFriendshipParticipant(resource.data) || isAdmin();
+    }
+
+    match /guildWars/{warId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

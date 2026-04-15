@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Users, Shield, Swords, Trophy, Plus } from 'lucide-react';
 import { audio } from '@/lib/audio';
-import { doc, updateDoc, setDoc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 interface Guild {
@@ -145,7 +145,7 @@ export const Guilds: React.FC = () => {
         }
 
         await updateDoc(guildRef, {
-          members: [...guildData.members, user.uid]
+          members: arrayUnion(user.uid)
         });
         await updateDoc(doc(db, 'users', user.uid), {
           guildId: guildId
@@ -168,11 +168,10 @@ export const Guilds: React.FC = () => {
       const newMembers = myGuild.members.filter(id => id !== user.uid);
 
       if (newMembers.length === 0) {
-        // Delete guild if empty
-        // await deleteDoc(guildRef); // Need deleteDoc imported
+        await deleteDoc(guildRef);
       } else {
         await updateDoc(guildRef, {
-          members: newMembers,
+          members: arrayRemove(user.uid),
           leaderId: myGuild.leaderId === user.uid ? newMembers[0] : myGuild.leaderId // Pass leadership if leader leaves
         });
       }
