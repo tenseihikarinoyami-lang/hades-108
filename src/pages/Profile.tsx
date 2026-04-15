@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import { Shield, Target, Zap, Fingerprint, Cpu, AlertCircle, Medal, Crosshair, Flag, PackageOpen, Sparkles, Swords, Shield as ShieldIcon, Scroll, Users, Copy, Gift, Coins } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { processReferralCode } from '@/lib/referrals';
-import { useState } from 'react';
 
 const FACTIONS = [
   { id: 'Wyvern', name: 'Ejército de Radamanthys (Wyvern)', color: 'text-purple-500', border: 'border-purple-500' },
