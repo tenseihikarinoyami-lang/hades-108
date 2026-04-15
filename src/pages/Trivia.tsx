@@ -42,6 +42,7 @@ export const Trivia: React.FC = () => {
   const [garudaShieldActive, setGarudaShieldActive] = useState(false);
   const [isBossStage, setIsBossStage] = useState(false);
   const [lastLoot, setLastLoot] = useState<Equipment | null>(null);
+  const [runLoot, setRunLoot] = useState<Equipment[]>([]);
   const [enemyElement, setEnemyElement] = useState<Element>('Neutral');
   const [classBonus, setClassBonus] = useState(CLASS_BONUSES['Ninguna']);
   const [hiddenOptions, setHiddenOptions] = useState<number[]>([]);
@@ -120,6 +121,7 @@ export const Trivia: React.FC = () => {
     const isFirstBoss = !isOracleMode && arena !== 'oracle' && arena.questions.length === 1;
     setIsBossStage(isFirstBoss);
     setLastLoot(null);
+    setRunLoot([]);
 
     // Randomize enemy element for the first question
     const elements: Element[] = ['Fuego', 'Hielo', 'Rayo', 'Oscuridad', 'Neutral'];
@@ -277,6 +279,7 @@ export const Trivia: React.FC = () => {
         const droppedLoot = rollLoot(isBossStage);
         if (droppedLoot && user && profile) {
           setLastLoot(droppedLoot);
+          setRunLoot(prev => [...prev, droppedLoot]);
 
           // CRITICAL FIX: Usar updateDoc para agregar al array en lugar de reemplazar
           const docRef = doc(db, 'users', user.uid);
@@ -471,11 +474,18 @@ export const Trivia: React.FC = () => {
         const newXP = currentXP + finalScore;
         const currentLevel = profile.level || 1;
         const newLevel = getLevelFromXP(newXP);
+        const docRef = doc(db, 'users', user.uid);
 
         let cosmosPointsGained = 0;
         if (newLevel > currentLevel) {
           cosmosPointsGained = newLevel - currentLevel;
           toast.success(`¡Nivel de Espectro Aumentado! Eres nivel ${newLevel}. +${cosmosPointsGained} Puntos de Cosmos.`);
+        }
+
+        if (runLoot.length > 0) {
+          await updateDoc(docRef, {
+            gearInventory: arrayUnion(...runLoot)
+          });
         }
 
         await updateProfile({
