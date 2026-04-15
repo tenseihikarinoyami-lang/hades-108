@@ -308,6 +308,7 @@ export const SecretBosses: React.FC = () => {
             Dioses Primordiales
           </h1>
           <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">20 Jefes Secretos</p>
+          <p className="text-xs font-mono text-accent/70 uppercase tracking-widest">Desplazate para ver la lista completa de primordiales</p>
           <div className="flex flex-wrap justify-center items-center gap-4 mt-4">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-cyan-400" />
@@ -319,7 +320,7 @@ export const SecretBosses: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {SECRET_BOSSES.map((boss) => {
             const Icon = boss.icon;
 

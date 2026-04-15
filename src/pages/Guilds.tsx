@@ -55,6 +55,7 @@ export const Guilds: React.FC = () => {
           { id: 'node_2', name: 'Cantera de Estrellas', resource: 'Star Fragments', ownerGuildId: null, ownerGuildName: null, defenseScore: 0 },
           { id: 'node_3', name: 'Forja de Almas', resource: 'Soul Essence', ownerGuildId: null, ownerGuildName: null, defenseScore: 0 }
         ];
+        await Promise.all(initialNodes.map((node) => setDoc(doc(db, 'guildNodes', node.id), node, { merge: true })));
         setNodes(initialNodes);
       } else {
         setNodes(fetchedNodes);

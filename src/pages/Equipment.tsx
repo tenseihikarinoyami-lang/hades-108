@@ -1,77 +1,119 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Shield, Sword, Gem, Package, Hexagon, Coins, Sparkles, Flame, Snowflake, Zap, Moon, Circle } from 'lucide-react';
 import { toast } from 'sonner';
 import { audio } from '@/lib/audio';
 import { Equipment, RARITY_COLORS, calculateSetBonus, Element } from '@/lib/rpg';
 import { CharacterAvatar } from '@/components/CharacterAvatar';
 
+type EquippedGearState = {
+  weapon?: Equipment | null;
+  armor?: Equipment | null;
+  artifact?: Equipment | null;
+};
+
 export const EquipmentPage: React.FC = () => {
   const { user, profile } = useAuth();
+  const [liveGearInventory, setLiveGearInventory] = useState<Equipment[] | null>(null);
+  const [liveEquippedGear, setLiveEquippedGear] = useState<EquippedGearState | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setLiveGearInventory(null);
+      setLiveEquippedGear(null);
+      return;
+    }
+
+    const docRef = doc(db, 'users', user.uid);
+    return onSnapshot(docRef, (snapshot) => {
+      if (!snapshot.exists()) return;
+
+      const data = snapshot.data();
+      setLiveGearInventory(Array.isArray(data.gearInventory) ? (data.gearInventory as Equipment[]) : []);
+      setLiveEquippedGear({
+        weapon: data.equippedGear?.weapon || null,
+        armor: data.equippedGear?.armor || null,
+        artifact: data.equippedGear?.artifact || null,
+      });
+    });
+  }, [user]);
+
+  const resolvedGearInventory = useMemo(
+    () => liveGearInventory ?? profile?.gearInventory ?? [],
+    [liveGearInventory, profile?.gearInventory]
+  );
+  const resolvedEquippedGear = useMemo<EquippedGearState>(
+    () => liveEquippedGear ?? profile?.equippedGear ?? { weapon: null, armor: null, artifact: null },
+    [liveEquippedGear, profile?.equippedGear]
+  );
 
   const handleEquip = async (item: Equipment) => {
-    if (!user || !profile) return;
+    if (!user) return;
     audio.playSFX('click');
 
     try {
       const docRef = doc(db, 'users', user.uid);
-      const newEquipped = { ...profile.equippedGear };
+      const newEquipped = { ...resolvedEquippedGear };
       newEquipped[item.type] = item;
 
       await updateDoc(docRef, { equippedGear: newEquipped });
       toast.success(`${item.name} equipado.`);
     } catch (error) {
-      console.error("Error equipping item:", error);
+      console.error('Error equipping item:', error);
     }
   };
 
   const handleUnequip = async (type: 'weapon' | 'armor' | 'artifact') => {
-    if (!user || !profile) return;
+    if (!user) return;
     audio.playSFX('click');
 
     try {
       const docRef = doc(db, 'users', user.uid);
-      const newEquipped = { ...profile.equippedGear };
+      const newEquipped = { ...resolvedEquippedGear };
       newEquipped[type] = null;
 
       await updateDoc(docRef, { equippedGear: newEquipped });
-      toast("Objeto desequipado.");
+      toast('Objeto desequipado.');
     } catch (error) {
-      console.error("Error unequipping item:", error);
+      console.error('Error unequipping item:', error);
     }
   };
 
   const handleSell = async (item: Equipment) => {
-    if (!user || !profile) return;
+    if (!user) return;
     audio.playSFX('click');
 
     try {
       const docRef = doc(db, 'users', user.uid);
-      const newInventory = profile.gearInventory?.filter(g => g.id !== item.id) || [];
+      const newInventory = resolvedGearInventory.filter((gear) => gear.id !== item.id);
       const sellValue = item.rarity === 'divino' ? 500 : item.rarity === 'espectro' ? 200 : item.rarity === 'oro' ? 100 : item.rarity === 'plata' ? 50 : 10;
 
       await updateDoc(docRef, {
         gearInventory: newInventory,
-        obolos: (profile.obolos || 0) + sellValue
+        obolos: (profile?.obolos || 0) + sellValue,
       });
-      toast.success(`Vendido por ${sellValue} Óbolos.`);
+      toast.success(`Vendido por ${sellValue} obolos.`);
     } catch (error) {
-      console.error("Error selling item:", error);
+      console.error('Error selling item:', error);
     }
   };
 
   const getElementIcon = (element: Element) => {
     switch (element) {
-      case 'Fuego': return <Flame className="w-3 h-3 text-red-500" />;
-      case 'Hielo': return <Snowflake className="w-3 h-3 text-blue-300" />;
-      case 'Rayo': return <Zap className="w-3 h-3 text-yellow-400" />;
-      case 'Oscuridad': return <Moon className="w-3 h-3 text-purple-600" />;
-      default: return <Circle className="w-3 h-3 text-slate-400" />;
+      case 'Fuego':
+        return <Flame className="w-3 h-3 text-red-500" />;
+      case 'Hielo':
+        return <Snowflake className="w-3 h-3 text-blue-300" />;
+      case 'Rayo':
+        return <Zap className="w-3 h-3 text-yellow-400" />;
+      case 'Oscuridad':
+        return <Moon className="w-3 h-3 text-purple-600" />;
+      default:
+        return <Circle className="w-3 h-3 text-slate-400" />;
     }
   };
 
@@ -103,78 +145,77 @@ export const EquipmentPage: React.FC = () => {
     </div>
   );
 
+  const activeSetBonus = calculateSetBonus(resolvedEquippedGear);
+
   return (
     <div className="max-w-6xl mx-auto space-y-12 relative z-10">
       <div className="text-center space-y-4 mb-12">
         <Hexagon className="w-16 h-16 text-accent mx-auto animate-pulse" />
         <h1 className="text-5xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-accent via-white to-accent neon-text-accent uppercase tracking-[0.2em]">
-          Armería Sapuris
+          Armeria Sapuris
         </h1>
-        <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">Equipa reliquias para aumentar tu poder en la Arena</p>
+        <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">Equipa reliquias para tu aumento de poder en la Arena</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Avatar & Equipped Gear */}
         <Card className="lg:col-span-1 glass-panel border-accent/30 clip-card relative overflow-hidden">
           <div className="absolute inset-0 scanline opacity-20 pointer-events-none" />
           <CardHeader className="text-center border-b border-accent/20 bg-background/40">
             <CardTitle className="font-display text-xl text-white tracking-widest uppercase">Tu Espectro</CardTitle>
           </CardHeader>
           <CardContent className="pt-8 pb-12 flex flex-col items-center gap-8">
-            {/* AVATAR VISUAL TIPO DIABLO */}
             <CharacterAvatar
-              equippedGear={profile?.equippedGear}
+              equippedGear={resolvedEquippedGear}
               specterName={profile?.specterName}
               photoURL={profile?.photoURL || user?.photoURL || ''}
               className="w-full"
             />
 
             <div className="flex justify-center gap-4 w-full">
-              {renderSlot('weapon', profile?.equippedGear?.weapon, <Sword className="w-8 h-8" />, 'Arma')}
-              {renderSlot('armor', profile?.equippedGear?.armor, <Shield className="w-8 h-8" />, 'Armadura')}
-              {renderSlot('artifact', profile?.equippedGear?.artifact, <Gem className="w-8 h-8" />, 'Artefacto')}
+              {renderSlot('weapon', resolvedEquippedGear.weapon, <Sword className="w-8 h-8" />, 'Arma')}
+              {renderSlot('armor', resolvedEquippedGear.armor, <Shield className="w-8 h-8" />, 'Armadura')}
+              {renderSlot('artifact', resolvedEquippedGear.artifact, <Gem className="w-8 h-8" />, 'Artefacto')}
             </div>
 
             <div className="w-full bg-background/50 border border-accent/20 p-4 clip-diagonal text-center space-y-2">
               <h4 className="font-mono text-accent text-xs tracking-widest">BONIFICACIONES TOTALES</h4>
               <div className="flex justify-center gap-4 text-sm font-bold">
-                <span className="text-red-400">ATK: +{profile?.equippedGear?.weapon?.stats?.damage || 0}</span>
-                <span className="text-green-400">HP: +{profile?.equippedGear?.armor?.stats?.health || 0}</span>
-                <span className="text-blue-400">TIME: +{profile?.equippedGear?.artifact?.stats?.time || 0}s</span>
+                <span className="text-red-400">ATK: +{resolvedEquippedGear.weapon?.stats?.damage || 0}</span>
+                <span className="text-green-400">HP: +{resolvedEquippedGear.armor?.stats?.health || 0}</span>
+                <span className="text-blue-400">TIME: +{resolvedEquippedGear.artifact?.stats?.time || 0}s</span>
               </div>
-              {profile?.equippedGear && calculateSetBonus(profile.equippedGear) && (
+              {activeSetBonus && (
                 <div className="mt-2 pt-2 border-t border-accent/20 text-xs text-yellow-400 font-mono animate-pulse">
-                  ¡Bono de Set Activo: {calculateSetBonus(profile.equippedGear)}!
+                  Bono de Set Activo: {activeSetBonus}
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Inventory & Black Market */}
         <Card className="lg:col-span-2 glass-panel border-accent/30 clip-card">
           <CardHeader className="border-b border-accent/20 bg-background/40 flex flex-row items-center justify-between">
             <CardTitle className="font-display text-xl text-white tracking-widest uppercase flex items-center gap-2">
-              <Package className="w-5 h-5 text-accent" /> Inventario & Mercado Negro
+              <Package className="w-5 h-5 text-accent" /> Inventario y Mercado Negro
             </CardTitle>
             <div className="flex items-center gap-4">
               <span className="text-xs font-mono text-yellow-400 flex items-center gap-1"><Coins className="w-3 h-3" /> {profile?.obolos || 0}</span>
               <span className="text-xs font-mono text-cyan-400 flex items-center gap-1"><Sparkles className="w-3 h-3" /> {profile?.starFragments || 0}</span>
-              <span className="text-xs font-mono text-muted-foreground">{profile?.gearInventory?.length || 0} OBJETOS</span>
+              <span className="text-xs font-mono text-muted-foreground">{resolvedGearInventory.length} OBJETOS</span>
             </div>
           </CardHeader>
           <CardContent className="p-6">
-            {(!profile?.gearInventory || profile.gearInventory.length === 0) ? (
+            {resolvedGearInventory.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground font-mono border border-dashed border-accent/20 clip-diagonal">
-                Tu inventario está vacío. Juega en la Arena para obtener botín.
+                Tu inventario esta vacio. Juega en la Arena para obtener el botin.
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {profile.gearInventory.map((item) => {
+                {resolvedGearInventory.map((item) => {
                   const isEquipped =
-                    profile.equippedGear?.weapon?.id === item.id ||
-                    profile.equippedGear?.armor?.id === item.id ||
-                    profile.equippedGear?.artifact?.id === item.id;
+                    resolvedEquippedGear.weapon?.id === item.id ||
+                    resolvedEquippedGear.armor?.id === item.id ||
+                    resolvedEquippedGear.artifact?.id === item.id;
 
                   return (
                     <div
@@ -190,9 +231,9 @@ export const EquipmentPage: React.FC = () => {
                         </div>
                         <h4 className="font-bold text-sm leading-tight mb-2">{item.name}</h4>
                         <div className="space-y-1 mb-2">
-                          {item.stats.damage && <div className="text-xs text-red-400 font-mono">+{item.stats.damage} Daño</div>}
-                          {item.stats.health && <div className="text-xs text-green-400 font-mono">+{item.stats.health} Vida Inicial</div>}
-                          {item.stats.time && <div className="text-xs text-blue-400 font-mono">+{item.stats.time}s Tiempo</div>}
+                          {item.stats.damage ? <div className="text-xs text-red-400 font-mono">+{item.stats.damage} Dano</div> : null}
+                          {item.stats.health ? <div className="text-xs text-green-400 font-mono">+{item.stats.health} Vida Inicial</div> : null}
+                          {item.stats.time ? <div className="text-xs text-blue-400 font-mono">+{item.stats.time}s Tiempo</div> : null}
                         </div>
                         {item.set !== 'Ninguno' && (
                           <div className="text-[10px] text-yellow-500/80 font-mono">Set: {item.set}</div>
