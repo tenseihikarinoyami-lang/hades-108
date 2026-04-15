@@ -423,11 +423,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const updateProfile = async (data: Partial<UserProfile>) => {
-    if (!user || !profile) return;
+    if (!user) return;
     const docRef = doc(db, 'users', user.uid);
-    const updatedProfile = { ...profile, ...data };
-    await setDoc(docRef, updatedProfile, { merge: true });
-    setProfile(updatedProfile);
+    await setDoc(docRef, data, { merge: true });
+    setProfile((currentProfile) => {
+      if (!currentProfile) return currentProfile;
+      return { ...currentProfile, ...data };
+    });
   };
 
   return (
