@@ -1,6 +1,6 @@
 // SISTEMA MENTOR/APRENDIZ - Lazos del Tártaro
 import { db } from './firebase';
-import { doc, updateDoc, getDoc, increment, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, increment, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 
 // Aceptar aprendiz
 export async function acceptApprentice(mentorId: string, apprenticeId: string): Promise<{ success: boolean; message: string }> {
@@ -14,7 +14,7 @@ export async function acceptApprentice(mentorId: string, apprenticeId: string): 
     });
     
     await updateDoc(mentorRef, {
-      apprenticeIds: increment(1)
+      apprenticeIds: arrayUnion(apprenticeId)
     });
 
     return { success: true, message: '¡Aprendiz aceptado!' };
@@ -49,13 +49,13 @@ export async function completeApprenticeship(mentorId: string, apprenticeId: str
   await updateDoc(doc(db, 'users', mentorId), {
     obolos: increment(500),
     prestigePoints: increment(20),
-    titles: increment(1)
+    apprenticeIds: arrayRemove(apprenticeId)
   });
   
   await updateDoc(doc(db, 'users', apprenticeId), {
     obolos: increment(500),
     mentorId: null,
-    titles: [rewardTitle]
+    titles: arrayUnion(rewardTitle)
   });
 }
 
@@ -67,8 +67,10 @@ export async function findAvailableMentors(): Promise<any[]> {
   );
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    uid: doc.id,
-    ...doc.data()
-  })).filter(u => !u.mentorId); // Solo los que no tienen mentor
+  return snapshot.docs
+    .map((snapshotDoc) => ({
+      uid: snapshotDoc.id,
+      ...snapshotDoc.data()
+    }) as { uid: string; mentorId?: string | null; [key: string]: any })
+    .filter((user) => !user.mentorId); // Solo los que no tienen mentor
 }

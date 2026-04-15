@@ -1,7 +1,7 @@
 // MINIJUEGOS CASUALES - Juegos del Inframundo
 // Dados de Hades, Memoria del Cocytos, Ruleta del Destino
 
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc, increment } from 'firebase/firestore';

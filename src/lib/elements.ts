@@ -1,3 +1,4 @@
+import { createElement, type ReactElement } from 'react';
 import { Flame, Snowflake, Zap, Moon, Circle } from 'lucide-react';
 
 export type Element = 'Fuego' | 'Hielo' | 'Rayo' | 'Oscuridad' | 'Neutral';
@@ -6,13 +7,13 @@ export type Element = 'Fuego' | 'Hielo' | 'Rayo' | 'Oscuridad' | 'Neutral';
  * Retorna el ícono correspondiente para un elemento.
  * Componente reutilizable para evitar duplicación.
  */
-export const getElementIcon = (element: Element) => {
+export const getElementIcon = (element: Element): ReactElement => {
   switch (element) {
-    case 'Fuego': return <Flame className="w-4 h-4 text-red-500" />;
-    case 'Hielo': return <Snowflake className="w-4 h-4 text-blue-300" />;
-    case 'Rayo': return <Zap className="w-4 h-4 text-yellow-400" />;
-    case 'Oscuridad': return <Moon className="w-4 h-4 text-purple-600" />;
-    default: return <Circle className="w-4 h-4 text-slate-400" />;
+    case 'Fuego': return createElement(Flame, { className: 'w-4 h-4 text-red-500' });
+    case 'Hielo': return createElement(Snowflake, { className: 'w-4 h-4 text-blue-300' });
+    case 'Rayo': return createElement(Zap, { className: 'w-4 h-4 text-yellow-400' });
+    case 'Oscuridad': return createElement(Moon, { className: 'w-4 h-4 text-purple-600' });
+    default: return createElement(Circle, { className: 'w-4 h-4 text-slate-400' });
   }
 };
 

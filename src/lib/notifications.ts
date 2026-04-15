@@ -1,12 +1,17 @@
 // NOTIFICACIONES PUSH - Firebase Cloud Messaging
+import { app, db } from '@/lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-import { app } from '@/lib/firebase';
 
 const messaging = getMessaging(app);
 
 // Solicitar permiso y obtener token
 export async function requestNotificationPermission(userId: string): Promise<string | null> {
   try {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      return null;
+    }
+
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       const token = await getToken(messaging, {
@@ -15,8 +20,6 @@ export async function requestNotificationPermission(userId: string): Promise<str
       
       // Guardar token en Firestore
       if (token) {
-        const { db } = await import('firebase/firestore');
-        const { doc, updateDoc } = await import('firebase/firestore');
         await updateDoc(doc(db, 'users', userId), {
           fcmToken: token,
           notificationsEnabled: true

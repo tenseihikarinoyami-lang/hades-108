@@ -1,9 +1,9 @@
 import { db } from './firebase';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 import { UserProfile } from '../context/AuthContext';
 import { toast } from 'sonner';
 import { audio } from './audio';
-import { ACHIEVEMENTS, Achievement } from '../data/achievements';
+import { ACHIEVEMENTS } from '../data/achievements';
 
 export const checkAndAwardBadges = async (uid: string, profile: UserProfile) => {
   if (!profile.stats) return;
@@ -57,7 +57,7 @@ export const checkAndAwardBadges = async (uid: string, profile: UserProfile) => 
 
 // ACHIEVEMENT SYSTEM
 export const checkAchievements = async (uid: string, profile: UserProfile) => {
-  const unlockedAchiements = profile.achievements || [];
+  const unlockedAchievements = profile.achievements || [];
   const newAchievements: string[] = [];
   const docRef = doc(db, 'users', uid);
   let totalPrestigePoints = profile.prestigePoints || 0;
