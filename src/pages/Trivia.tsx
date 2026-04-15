@@ -196,9 +196,10 @@ export const Trivia: React.FC = () => {
   const handleTimeOut = () => {
     audio.playSFX('damage');
     triggerDamage('player');
-    setPlayerHealth(h => Math.max(0, h - 20));
+    const nextPlayerHealth = Math.max(0, playerHealth - 20);
+    setPlayerHealth(nextPlayerHealth);
     toast.error("¡TIEMPO AGOTADO! Daño crítico recibido.");
-    moveToNextQuestion(false);
+    moveToNextQuestion(false, nextPlayerHealth);
   };
 
   const handleAnswer = async (selectedIndex: number) => {
@@ -387,21 +388,22 @@ export const Trivia: React.FC = () => {
         }
 
         audio.playSFX('damage');
-        setPlayerHealth(h => Math.max(0, h - damage));
+        const nextPlayerHealth = Math.max(0, playerHealth - damage);
+        setPlayerHealth(nextPlayerHealth);
         triggerDamage('player');
 
-        moveToNextQuestion(false);
+        moveToNextQuestion(false, nextPlayerHealth);
       }
     }
   };
 
-  const moveToNextQuestion = (wasCorrect: boolean) => {
+  const moveToNextQuestion = (wasCorrect: boolean, nextPlayerHealth: number = playerHealth) => {
     if (!selectedArena) return;
 
     const totalQuestions = isOracleMode ? oracleQuestions.length : selectedArena.questions.length;
 
     // Check win/lose conditions
-    if (playerHealth <= 25 && !wasCorrect && !garudaShieldActive) { // Will die
+    if (!wasCorrect && nextPlayerHealth <= 0) {
       finishGame(false);
       return;
     }

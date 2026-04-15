@@ -83,7 +83,7 @@ export const Layout: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-x-hidden">
       {/* Background ambient effects */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-secondary/20 rounded-full blur-[120px]" />

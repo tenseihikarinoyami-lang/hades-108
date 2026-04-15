@@ -102,9 +102,10 @@ export const Tower: React.FC = () => {
   const handleTimeOut = () => {
     audio.playSFX('damage');
     triggerDamage('player');
-    setPlayerHealth(h => Math.max(0, h - 25));
+    const nextPlayerHealth = Math.max(0, playerHealth - 25);
+    setPlayerHealth(nextPlayerHealth);
     toast.error("¡TIEMPO AGOTADO! Daño crítico recibido.");
-    moveToNextQuestion(false);
+    moveToNextQuestion(false, nextPlayerHealth);
   };
 
   const handleAnswer = async (selectedIndex: number) => {
@@ -158,21 +159,22 @@ export const Tower: React.FC = () => {
       damage = Math.floor(damage * defenseMultiplier);
       
       audio.playSFX('damage');
-      setPlayerHealth(h => Math.max(0, h - damage));
+      const nextPlayerHealth = Math.max(0, playerHealth - damage);
+      setPlayerHealth(nextPlayerHealth);
       triggerDamage('player');
       
       if (defenseMultiplier > 1) toast.error("¡GOLPE CRÍTICO! (Súper Efectivo)");
       else if (defenseMultiplier < 1) toast.error("Tu armadura resistió parte del impacto.");
       else toast.error("¡EVASIÓN FALLIDA! Daño recibido.");
       
-      moveToNextQuestion(false);
+      moveToNextQuestion(false, nextPlayerHealth);
     }
   };
 
-  const moveToNextQuestion = (wasCorrect: boolean) => {
+  const moveToNextQuestion = (wasCorrect: boolean, nextPlayerHealth: number = playerHealth) => {
     const totalQuestions = questions.length;
 
-    if (playerHealth <= 0) {
+    if (!wasCorrect && nextPlayerHealth <= 0) {
       finishRun(false);
       return;
     }

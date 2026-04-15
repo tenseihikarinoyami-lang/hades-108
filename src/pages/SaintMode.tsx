@@ -118,8 +118,8 @@ export const SaintMode: React.FC = () => {
           }
         }
         updates.saintModeProgress = { saga: nextSagaId, chapter: nextChapter };
-        await updateDoc(docRef, updates);
       }
+      await updateDoc(docRef, updates);
       toast.success("¡Capítulo superado!");
     } else {
       toast.error("Has sido derrotado en este capítulo.");

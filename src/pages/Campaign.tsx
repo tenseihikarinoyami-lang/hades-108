@@ -159,8 +159,8 @@ export const Campaign: React.FC = () => {
           updates.titles = arrayUnion(`Conquistador de ${saga.name}`);
         }
 
-        await updateDoc(docRef, updates);
       }
+      await updateDoc(docRef, updates);
       toast.success("¡Nivel superado!");
     } else {
       toast.error("Has sido derrotado.");
