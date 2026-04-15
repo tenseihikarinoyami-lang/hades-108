@@ -1,16 +1,93 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Skull, Sparkles, Clock, EyeOff, ShieldAlert } from 'lucide-react';
+import {
+  Clock,
+  Crown,
+  EyeOff,
+  Flame,
+  Moon,
+  Mountain,
+  Shield,
+  ShieldAlert,
+  Skull,
+  Sparkles,
+  Sun,
+  Swords,
+  Waves,
+  Wind,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { rollLoot, rollGem, Equipment, RARITY_COLORS, SetType, GearType, Element } from '@/lib/rpg';
+import { rollGem, Equipment, RARITY_COLORS, SetType, GearType, Element } from '@/lib/rpg';
 
-type SecretBoss = 'Chronos' | 'Caos' | 'Nyx' | 'Erebus' | 'Tartarus';
+type BossEffect = 'time_warp' | 'scramble' | 'hide_options' | 'drain' | 'short_time';
+
+type SecretBoss =
+  | 'Chronos'
+  | 'Caos'
+  | 'Nyx'
+  | 'Erebus'
+  | 'Tartarus'
+  | 'Gaia'
+  | 'Uranus'
+  | 'Pontus'
+  | 'Ourea'
+  | 'Hemera'
+  | 'Aether'
+  | 'Eros'
+  | 'Ananke'
+  | 'Phanes'
+  | 'Thalassa'
+  | 'Moros'
+  | 'Thanatos'
+  | 'Hypnos'
+  | 'Nemesis'
+  | 'Eris';
+
+type BossDefinition = {
+  id: SecretBoss;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  iconClass: string;
+  cardBorder: string;
+  cardGlow: string;
+  buttonClass: string;
+  effect: BossEffect;
+  element: Element;
+  rewardTitle: string;
+  timeLimit: number;
+};
+
+const SECRET_BOSSES: BossDefinition[] = [
+  { id: 'Chronos', title: 'Chronos', description: 'El tiempo corre el doble de rapido.', icon: Clock, iconClass: 'text-yellow-400', cardBorder: 'border-yellow-500/30', cardGlow: 'from-yellow-900/10', buttonClass: 'bg-yellow-600 hover:bg-yellow-500', effect: 'time_warp', element: 'Neutral', rewardTitle: 'Asesino de Chronos', timeLimit: 10 },
+  { id: 'Caos', title: 'Caos', description: 'La realidad se distorsiona y el texto se corrompe.', icon: EyeOff, iconClass: 'text-purple-400', cardBorder: 'border-purple-500/30', cardGlow: 'from-purple-900/10', buttonClass: 'bg-purple-600 hover:bg-purple-500', effect: 'scramble', element: 'Oscuridad', rewardTitle: 'Vencedor del Caos', timeLimit: 10 },
+  { id: 'Nyx', title: 'Nyx', description: 'Oculta opciones en la oscuridad del vacio.', icon: Moon, iconClass: 'text-indigo-400', cardBorder: 'border-indigo-500/30', cardGlow: 'from-indigo-900/10', buttonClass: 'bg-indigo-600 hover:bg-indigo-500', effect: 'hide_options', element: 'Oscuridad', rewardTitle: 'Portador de la Noche', timeLimit: 10 },
+  { id: 'Erebus', title: 'Erebus', description: 'Drena tu vida constantemente.', icon: Skull, iconClass: 'text-slate-400', cardBorder: 'border-slate-500/30', cardGlow: 'from-slate-900/10', buttonClass: 'bg-slate-600 hover:bg-slate-500', effect: 'drain', element: 'Oscuridad', rewardTitle: 'Senor de las Sombras', timeLimit: 10 },
+  { id: 'Tartarus', title: 'Tartarus', description: 'Solo tienes 5 segundos para responder.', icon: ShieldAlert, iconClass: 'text-red-600', cardBorder: 'border-red-800/30', cardGlow: 'from-red-900/10', buttonClass: 'bg-red-800 hover:bg-red-700', effect: 'short_time', element: 'Fuego', rewardTitle: 'Conquistador del Abismo', timeLimit: 5 },
+  { id: 'Gaia', title: 'Gaia', description: 'La tierra te presiona con ventanas de tiempo brutales.', icon: Mountain, iconClass: 'text-emerald-400', cardBorder: 'border-emerald-500/30', cardGlow: 'from-emerald-900/10', buttonClass: 'bg-emerald-600 hover:bg-emerald-500', effect: 'short_time', element: 'Neutral', rewardTitle: 'Heraldo de Gaia', timeLimit: 5 },
+  { id: 'Uranus', title: 'Uranus', description: 'El firmamento colapsa sobre ti con respuestas fugaces.', icon: Wind, iconClass: 'text-cyan-400', cardBorder: 'border-cyan-500/30', cardGlow: 'from-cyan-900/10', buttonClass: 'bg-cyan-600 hover:bg-cyan-500', effect: 'short_time', element: 'Rayo', rewardTitle: 'Soberano del Firmamento', timeLimit: 5 },
+  { id: 'Pontus', title: 'Pontus', description: 'El mar primigenio consume tu vida poco a poco.', icon: Waves, iconClass: 'text-blue-400', cardBorder: 'border-blue-500/30', cardGlow: 'from-blue-900/10', buttonClass: 'bg-blue-600 hover:bg-blue-500', effect: 'drain', element: 'Hielo', rewardTitle: 'Azote del Mar Primigenio', timeLimit: 10 },
+  { id: 'Ourea', title: 'Ourea', description: 'Las montanas del origen deforman la realidad.', icon: Mountain, iconClass: 'text-stone-400', cardBorder: 'border-stone-500/30', cardGlow: 'from-stone-900/10', buttonClass: 'bg-stone-600 hover:bg-stone-500', effect: 'scramble', element: 'Neutral', rewardTitle: 'Dominador de las Cumbres', timeLimit: 10 },
+  { id: 'Hemera', title: 'Hemera', description: 'La luz enceguece y borra opciones del combate.', icon: Sun, iconClass: 'text-amber-400', cardBorder: 'border-amber-500/30', cardGlow: 'from-amber-900/10', buttonClass: 'bg-amber-600 hover:bg-amber-500', effect: 'hide_options', element: 'Fuego', rewardTitle: 'Portador del Alba', timeLimit: 10 },
+  { id: 'Aether', title: 'Aether', description: 'El eter acelera cada segundo de la batalla.', icon: Wind, iconClass: 'text-sky-300', cardBorder: 'border-sky-500/30', cardGlow: 'from-sky-900/10', buttonClass: 'bg-sky-600 hover:bg-sky-500', effect: 'time_warp', element: 'Rayo', rewardTitle: 'Dueno del Eter', timeLimit: 10 },
+  { id: 'Eros', title: 'Eros', description: 'El deseo primordial rompe la forma de las palabras.', icon: Sparkles, iconClass: 'text-pink-400', cardBorder: 'border-pink-500/30', cardGlow: 'from-pink-900/10', buttonClass: 'bg-pink-600 hover:bg-pink-500', effect: 'scramble', element: 'Fuego', rewardTitle: 'Arquero del Primer Deseo', timeLimit: 10 },
+  { id: 'Ananke', title: 'Ananke', description: 'El destino acelera el reloj sin misericordia.', icon: Crown, iconClass: 'text-fuchsia-400', cardBorder: 'border-fuchsia-500/30', cardGlow: 'from-fuchsia-900/10', buttonClass: 'bg-fuchsia-600 hover:bg-fuchsia-500', effect: 'time_warp', element: 'Oscuridad', rewardTitle: 'Rompedor del Destino', timeLimit: 10 },
+  { id: 'Phanes', title: 'Phanes', description: 'La primera luz altera el flujo del tiempo.', icon: Zap, iconClass: 'text-yellow-300', cardBorder: 'border-yellow-300/30', cardGlow: 'from-yellow-700/10', buttonClass: 'bg-yellow-500 hover:bg-yellow-400', effect: 'time_warp', element: 'Rayo', rewardTitle: 'Primera Luz Triunfante', timeLimit: 10 },
+  { id: 'Thalassa', title: 'Thalassa', description: 'La marea profunda ahoga opciones del tablero.', icon: Waves, iconClass: 'text-teal-400', cardBorder: 'border-teal-500/30', cardGlow: 'from-teal-900/10', buttonClass: 'bg-teal-600 hover:bg-teal-500', effect: 'hide_options', element: 'Hielo', rewardTitle: 'Guardian de las Profundidades', timeLimit: 10 },
+  { id: 'Moros', title: 'Moros', description: 'La fatalidad elimina caminos y opciones seguras.', icon: Shield, iconClass: 'text-zinc-300', cardBorder: 'border-zinc-500/30', cardGlow: 'from-zinc-900/10', buttonClass: 'bg-zinc-600 hover:bg-zinc-500', effect: 'hide_options', element: 'Oscuridad', rewardTitle: 'Vencedor del Sino', timeLimit: 10 },
+  { id: 'Thanatos', title: 'Thanatos', description: 'La muerte primordial te desgasta con cada segundo.', icon: Skull, iconClass: 'text-red-400', cardBorder: 'border-red-500/30', cardGlow: 'from-red-900/10', buttonClass: 'bg-red-600 hover:bg-red-500', effect: 'drain', element: 'Oscuridad', rewardTitle: 'Desafiante de la Muerte', timeLimit: 10 },
+  { id: 'Hypnos', title: 'Hypnos', description: 'El sueno profundo reduce al minimo tu margen de respuesta.', icon: Moon, iconClass: 'text-violet-400', cardBorder: 'border-violet-500/30', cardGlow: 'from-violet-900/10', buttonClass: 'bg-violet-600 hover:bg-violet-500', effect: 'short_time', element: 'Hielo', rewardTitle: 'Quebrantador del Sueno', timeLimit: 5 },
+  { id: 'Nemesis', title: 'Nemesis', description: 'La retribucion te castiga drenando tu resistencia.', icon: Swords, iconClass: 'text-orange-400', cardBorder: 'border-orange-500/30', cardGlow: 'from-orange-900/10', buttonClass: 'bg-orange-600 hover:bg-orange-500', effect: 'drain', element: 'Fuego', rewardTitle: 'Ejecutor del Equilibrio', timeLimit: 10 },
+  { id: 'Eris', title: 'Eris', description: 'La discordia deforma el texto y siembra confusion.', icon: Flame, iconClass: 'text-rose-400', cardBorder: 'border-rose-500/30', cardGlow: 'from-rose-900/10', buttonClass: 'bg-rose-600 hover:bg-rose-500', effect: 'scramble', element: 'Fuego', rewardTitle: 'Senor de la Discordia', timeLimit: 10 },
+];
 
 export const SecretBosses: React.FC = () => {
   const { user, profile } = useAuth();
@@ -25,33 +102,51 @@ export const SecretBosses: React.FC = () => {
   const [lastLoot, setLastLoot] = useState<Equipment | null>(null);
   const [hiddenOptions, setHiddenOptions] = useState<number[]>([]);
 
+  const selectedBossData = useMemo(
+    () => SECRET_BOSSES.find((boss) => boss.id === selectedBoss) || null,
+    [selectedBoss]
+  );
+
   useEffect(() => {
     let timer: NodeJS.Timeout;
+
     if (gameState === 'playing' && timeLeft > 0) {
-      const interval = selectedBoss === 'Chronos' ? 500 : 1000;
+      const interval = selectedBossData?.effect === 'time_warp' ? 500 : 1000;
       timer = setInterval(() => {
-        setTimeLeft(t => t - 1);
-        if (selectedBoss === 'Erebus') {
-          setPlayerHealth(h => Math.max(0, h - 5)); // Erebus passive drain
+        setTimeLeft((time) => time - 1);
+
+        if (selectedBossData?.effect === 'drain') {
+          setPlayerHealth((health) => {
+            const nextHealth = Math.max(0, health - 5);
+            if (nextHealth === 0) {
+              setTimeout(() => finishGame(false), 0);
+            }
+            return nextHealth;
+          });
         }
       }, interval);
     } else if (gameState === 'playing' && timeLeft === 0) {
       handleTimeOut();
     }
-    return () => clearInterval(timer);
-  }, [timeLeft, gameState, selectedBoss]);
 
-  const handleChallenge = async (boss: SecretBoss) => {
+    return () => clearInterval(timer);
+  }, [timeLeft, gameState, selectedBossData]);
+
+  const handleChallenge = async (bossId: SecretBoss) => {
     if (!user || !profile) return;
     if ((profile.memoryFragments || 0) < 5) {
-      toast.error("Necesitas 5 Fragmentos de Memoria para invocar a este Dios Primordial.");
+      toast.error('Necesitas 5 Fragmentos de Memoria para invocar a este Dios Primordial.');
       return;
     }
 
+    const bossData = SECRET_BOSSES.find((boss) => boss.id === bossId);
+    if (!bossData) return;
+
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Dios', 10); // 10 very hard questions
+    const generated = await generateInfiniteTrivia('Dios', 10);
+
     if (generated.length === 0) {
-      toast.error("El Primordial se niega a responder.");
+      toast.error('El Primordial se niega a responder.');
       setIsGenerating(false);
       return;
     }
@@ -61,29 +156,67 @@ export const SecretBosses: React.FC = () => {
       await updateDoc(docRef, {
         memoryFragments: increment(-5)
       });
-      
-      setSelectedBoss(boss);
+
+      setSelectedBoss(bossId);
       setQuestions(generated);
       setCurrentQ(0);
       setBossHealth(100);
       setPlayerHealth(100);
-      setTimeLeft(boss === 'Tartarus' ? 5 : 10);
+      setTimeLeft(bossData.timeLimit);
       setLastLoot(null);
       setHiddenOptions([]);
       setGameState('playing');
       audio.playSFX('click');
     } catch (error) {
-      toast.error("Error al consumir Fragmentos.");
+      toast.error('Error al consumir Fragmentos.');
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const moveToNext = (nextPlayerHealth: number, nextBossHealth: number) => {
+    if (nextPlayerHealth <= 0 && nextBossHealth > 0) {
+      finishGame(false);
+      return;
+    }
+
+    if (nextBossHealth <= 0) {
+      finishGame(true);
+      return;
+    }
+
+    if (currentQ + 1 < questions.length) {
+      const nextQuestion = currentQ + 1;
+      setCurrentQ(nextQuestion);
+      setTimeLeft(selectedBossData?.timeLimit || 10);
+
+      if (selectedBossData?.effect === 'hide_options') {
+        const nextTrivia = questions[nextQuestion];
+        const toHide: number[] = [];
+
+        for (let i = 0; i < nextTrivia.options.length; i++) {
+          if (Math.random() > 0.6) {
+            toHide.push(i);
+          }
+        }
+
+        setHiddenOptions(toHide);
+      } else {
+        setHiddenOptions([]);
+      }
+
+      return;
+    }
+
+    finishGame(false);
+  };
+
   const handleTimeOut = () => {
     audio.playSFX('damage');
-    setPlayerHealth(h => Math.max(0, h - 30));
-    toast.error("¡El tiempo te devora!");
-    moveToNext();
+    const nextPlayerHealth = Math.max(0, playerHealth - 30);
+    setPlayerHealth(nextPlayerHealth);
+    toast.error('El tiempo te devora.');
+    moveToNext(nextPlayerHealth, bossHealth);
   };
 
   const handleAnswer = (selectedIndex: number) => {
@@ -92,55 +225,28 @@ export const SecretBosses: React.FC = () => {
 
     if (isCorrect) {
       audio.playSFX('success');
-      setBossHealth(h => Math.max(0, h - 10));
-      toast.success("¡Impacto al Primordial!");
-    } else {
-      audio.playSFX('damage');
-      setPlayerHealth(h => Math.max(0, h - 30));
-      toast.error("¡El Primordial contraataca!");
-    }
-    moveToNext();
-  };
-
-  const moveToNext = () => {
-    if (playerHealth <= 30 && bossHealth > 0) {
-      finishGame(false);
-      return;
-    }
-    if (bossHealth <= 10) {
-      finishGame(true);
+      const nextBossHealth = Math.max(0, bossHealth - 10);
+      setBossHealth(nextBossHealth);
+      toast.success('Impacto al Primordial.');
+      moveToNext(playerHealth, nextBossHealth);
       return;
     }
 
-    if (currentQ + 1 < questions.length) {
-      setCurrentQ(prev => prev + 1);
-      setTimeLeft(selectedBoss === 'Tartarus' ? 5 : 10);
-      
-      if (selectedBoss === 'Nyx') {
-        // Nyx hides 1-2 options randomly
-        const q = questions[currentQ + 1];
-        const toHide = [];
-        for (let i = 0; i < q.options.length; i++) {
-          if (Math.random() > 0.6) toHide.push(i);
-        }
-        setHiddenOptions(toHide);
-      } else {
-        setHiddenOptions([]);
-      }
-    } else {
-      finishGame(bossHealth <= 0);
-    }
+    audio.playSFX('damage');
+    const nextPlayerHealth = Math.max(0, playerHealth - 30);
+    setPlayerHealth(nextPlayerHealth);
+    toast.error('El Primordial contraataca.');
+    moveToNext(nextPlayerHealth, bossHealth);
   };
 
-  const generateGodLoot = (boss: SecretBoss): Equipment => {
+  const generateGodLoot = (boss: BossDefinition): Equipment => {
     const types: GearType[] = ['weapon', 'armor', 'artifact'];
     const type = types[Math.floor(Math.random() * types.length)];
-    const element: Element = boss === 'Chronos' ? 'Neutral' : boss === 'Caos' ? 'Oscuridad' : boss === 'Nyx' ? 'Oscuridad' : boss === 'Erebus' ? 'Oscuridad' : 'Fuego';
-    
+
     let name = '';
-    if (type === 'weapon') name = `Guadaña de ${boss}`;
-    if (type === 'armor') name = `Manto de ${boss}`;
-    if (type === 'artifact') name = `Reliquia de ${boss}`;
+    if (type === 'weapon') name = `Arma de ${boss.id}`;
+    if (type === 'armor') name = `Manto de ${boss.id}`;
+    if (type === 'artifact') name = `Reliquia de ${boss.id}`;
 
     return {
       id: `god_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -152,169 +258,100 @@ export const SecretBosses: React.FC = () => {
         health: type === 'armor' ? 200 : 0,
         time: type === 'artifact' ? 10 : 0
       },
-      element,
-      set: boss as SetType
+      element: boss.element,
+      set: boss.id as SetType
     };
   };
 
   const finishGame = async (won: boolean) => {
     setGameState('result');
-    if (won && user && profile && selectedBoss) {
-      const loot = generateGodLoot(selectedBoss);
-      const gem = rollGem();
-      
-      setLastLoot(loot);
-      const docRef = doc(db, 'users', user.uid);
-      
-      const titlesMap: Record<SecretBoss, string> = {
-        'Chronos': 'Asesino de Chronos',
-        'Caos': 'Vencedor del Caos',
-        'Nyx': 'Portador de la Noche',
-        'Erebus': 'Señor de las Sombras',
-        'Tartarus': 'Conquistador del Abismo'
-      };
-      const newTitle = titlesMap[selectedBoss];
-      
-      const updates: any = {
-        gearInventory: [...(profile.gearInventory || []), loot],
-        gems: [...(profile.gems || []), gem],
-        obolos: increment(1000)
-      };
 
-      if (!profile.titles?.includes(newTitle)) {
-        updates.titles = [...(profile.titles || []), newTitle];
-      }
-
-      await updateDoc(docRef, updates);
-      toast.success(`¡Has derrotado al Primordial! +1000 Óbolos | Gema: ${gem.name} | Nuevo Título: ${newTitle}`);
-    } else {
-      toast.error("Has sido aniquilado por el Primordial.");
+    if (!won || !user || !profile || !selectedBossData) {
+      toast.error('Has sido aniquilado por el Primordial.');
+      return;
     }
+
+    const loot = generateGodLoot(selectedBossData);
+    const gem = rollGem();
+
+    setLastLoot(loot);
+    const docRef = doc(db, 'users', user.uid);
+
+    const updates: Record<string, any> = {
+      gearInventory: arrayUnion(loot),
+      gems: arrayUnion(gem),
+      obolos: increment(1000)
+    };
+
+    if (!profile.titles?.includes(selectedBossData.rewardTitle)) {
+      updates.titles = arrayUnion(selectedBossData.rewardTitle);
+    }
+
+    await updateDoc(docRef, updates);
+    toast.success(`Has derrotado a ${selectedBossData.title}. +1000 Obolos | Gema: ${gem.name}`);
   };
 
-  // Chaos obfuscation
   const scrambleText = (text: string) => {
-    if (selectedBoss !== 'Caos') return text;
-    return text.split('').map(char => Math.random() > 0.8 ? '?' : char).join('');
+    if (selectedBossData?.effect !== 'scramble') return text;
+    return text
+      .split('')
+      .map((char) => (Math.random() > 0.8 ? '?' : char))
+      .join('');
   };
 
   if (gameState === 'lobby') {
     return (
-      <div className="max-w-6xl mx-auto space-y-12 relative z-10">
+      <div className="max-w-7xl mx-auto space-y-12 relative z-10">
         <div className="text-center space-y-4 mb-12">
           <ShieldAlert className="w-16 h-16 text-red-500 mx-auto animate-pulse" />
           <h1 className="text-5xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-purple-500 to-red-500 neon-text-accent uppercase tracking-[0.2em]">
             Dioses Primordiales
           </h1>
-          <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">Jefes Secretos</p>
-          <div className="flex justify-center items-center gap-2 mt-4">
-            <Sparkles className="w-5 h-5 text-cyan-400" />
-            <span className="font-mono text-white">Fragmentos de Memoria: {profile?.memoryFragments || 0}</span>
+          <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">20 Jefes Secretos</p>
+          <div className="flex flex-wrap justify-center items-center gap-4 mt-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-cyan-400" />
+              <span className="font-mono text-white">Fragmentos de Memoria: {profile?.memoryFragments || 0}</span>
+            </div>
+            <div className="px-3 py-1 border border-purple-500/40 bg-purple-500/10 text-xs font-mono uppercase tracking-widest text-purple-300">
+              {SECRET_BOSSES.length} Primordiales Disponibles
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Chronos */}
-          <Card className="glass-panel border-yellow-500/30 clip-card relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-b from-yellow-900/10 to-transparent pointer-events-none" />
-            <CardHeader className="text-center border-b border-yellow-500/20 bg-background/40">
-              <Clock className="w-12 h-12 text-yellow-400 mx-auto mb-4" />
-              <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">Chronos</CardTitle>
-              <p className="text-xs font-mono text-muted-foreground mt-2">El Tiempo corre el doble de rápido.</p>
-            </CardHeader>
-            <CardContent className="p-6 text-center">
-              <Button 
-                onClick={() => handleChallenge('Chronos')}
-                disabled={isGenerating || (profile?.memoryFragments || 0) < 5}
-                className="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-display tracking-widest uppercase clip-diagonal"
-              >
-                {isGenerating ? 'Invocando...' : 'Invocar (5 Fragmentos)'}
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {SECRET_BOSSES.map((boss) => {
+            const Icon = boss.icon;
 
-          {/* Caos */}
-          <Card className="glass-panel border-purple-500/30 clip-card relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 to-transparent pointer-events-none" />
-            <CardHeader className="text-center border-b border-purple-500/20 bg-background/40">
-              <EyeOff className="w-12 h-12 text-purple-400 mx-auto mb-4" />
-              <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">Caos</CardTitle>
-              <p className="text-xs font-mono text-muted-foreground mt-2">La realidad se distorsiona (Texto ofuscado).</p>
-            </CardHeader>
-            <CardContent className="p-6 text-center">
-              <Button 
-                onClick={() => handleChallenge('Caos')}
-                disabled={isGenerating || (profile?.memoryFragments || 0) < 5}
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white font-display tracking-widest uppercase clip-diagonal"
-              >
-                {isGenerating ? 'Invocando...' : 'Invocar (5 Fragmentos)'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Nyx */}
-          <Card className="glass-panel border-indigo-500/30 clip-card relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-b from-indigo-900/10 to-transparent pointer-events-none" />
-            <CardHeader className="text-center border-b border-indigo-500/20 bg-background/40">
-              <EyeOff className="w-12 h-12 text-indigo-400 mx-auto mb-4" />
-              <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">Nyx</CardTitle>
-              <p className="text-xs font-mono text-muted-foreground mt-2">Oculta opciones en la oscuridad.</p>
-            </CardHeader>
-            <CardContent className="p-6 text-center">
-              <Button 
-                onClick={() => handleChallenge('Nyx')}
-                disabled={isGenerating || (profile?.memoryFragments || 0) < 5}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-display tracking-widest uppercase clip-diagonal"
-              >
-                {isGenerating ? 'Invocando...' : 'Invocar (5 Fragmentos)'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Erebus */}
-          <Card className="glass-panel border-slate-500/30 clip-card relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-900/10 to-transparent pointer-events-none" />
-            <CardHeader className="text-center border-b border-slate-500/20 bg-background/40">
-              <Skull className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-              <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">Erebus</CardTitle>
-              <p className="text-xs font-mono text-muted-foreground mt-2">Drena tu vida constantemente.</p>
-            </CardHeader>
-            <CardContent className="p-6 text-center">
-              <Button 
-                onClick={() => handleChallenge('Erebus')}
-                disabled={isGenerating || (profile?.memoryFragments || 0) < 5}
-                className="w-full bg-slate-600 hover:bg-slate-500 text-white font-display tracking-widest uppercase clip-diagonal"
-              >
-                {isGenerating ? 'Invocando...' : 'Invocar (5 Fragmentos)'}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Tartarus */}
-          <Card className="glass-panel border-red-800/30 clip-card relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-b from-red-900/10 to-transparent pointer-events-none" />
-            <CardHeader className="text-center border-b border-red-800/20 bg-background/40">
-              <ShieldAlert className="w-12 h-12 text-red-600 mx-auto mb-4" />
-              <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">Tartarus</CardTitle>
-              <p className="text-xs font-mono text-muted-foreground mt-2">Solo 5 segundos para responder.</p>
-            </CardHeader>
-            <CardContent className="p-6 text-center">
-              <Button 
-                onClick={() => handleChallenge('Tartarus')}
-                disabled={isGenerating || (profile?.memoryFragments || 0) < 5}
-                className="w-full bg-red-800 hover:bg-red-700 text-white font-display tracking-widest uppercase clip-diagonal"
-              >
-                {isGenerating ? 'Invocando...' : 'Invocar (5 Fragmentos)'}
-              </Button>
-            </CardContent>
-          </Card>
+            return (
+              <Card key={boss.id} className={`glass-panel ${boss.cardBorder} clip-card relative overflow-hidden group`}>
+                <div className={`absolute inset-0 bg-gradient-to-b ${boss.cardGlow} to-transparent pointer-events-none`} />
+                <CardHeader className="text-center border-b border-white/10 bg-background/40">
+                  <Icon className={`w-12 h-12 mx-auto mb-4 ${boss.iconClass}`} />
+                  <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">{boss.title}</CardTitle>
+                  <p className="text-xs font-mono text-muted-foreground mt-2">{boss.description}</p>
+                </CardHeader>
+                <CardContent className="p-6 text-center">
+                  <Button
+                    onClick={() => handleChallenge(boss.id)}
+                    disabled={isGenerating || (profile?.memoryFragments || 0) < 5}
+                    className={`w-full text-white font-display tracking-widest uppercase clip-diagonal ${boss.buttonClass}`}
+                  >
+                    {isGenerating ? 'Invocando...' : 'Invocar (5 Fragmentos)'}
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     );
   }
 
-  if (gameState === 'playing') {
+  if (gameState === 'playing' && selectedBossData) {
     const q = questions[currentQ];
+    if (!q) return null;
+
     return (
       <div className="max-w-3xl mx-auto mt-12">
         <div className="flex justify-between items-center mb-8 px-4 py-2 bg-background/80 border border-red-500/50 clip-diagonal">
@@ -324,21 +361,28 @@ export const SecretBosses: React.FC = () => {
           </span>
           <span className="font-mono text-green-400">Tu HP: {playerHealth}%</span>
         </div>
-        
+
         <Card className="glass-panel border-red-500/50 clip-card p-8 relative overflow-hidden">
           <div className="absolute inset-0 bg-red-900/10 pointer-events-none" />
-          <h3 className="text-xl font-sans font-bold text-white mb-8 text-center relative z-10">
-            {scrambleText(q.q)}
+          <h3 className="text-xl font-sans font-bold text-white mb-3 text-center relative z-10">
+            {selectedBossData.title}
           </h3>
+          <p className="text-xs uppercase tracking-widest text-center text-muted-foreground mb-8 relative z-10">
+            {selectedBossData.description}
+          </p>
+          <h4 className="text-lg font-sans font-bold text-white mb-8 text-center relative z-10">
+            {scrambleText(q.q)}
+          </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
             {q.options.map((opt, idx) => {
               if (hiddenOptions.includes(idx)) {
-                return <div key={idx} className="h-auto py-4 opacity-0 pointer-events-none"></div>;
+                return <div key={idx} className="h-auto py-4 opacity-0 pointer-events-none" />;
               }
+
               return (
-                <Button 
-                  key={idx} 
-                  variant="outline" 
+                <Button
+                  key={idx}
+                  variant="outline"
                   className="h-auto py-4 text-lg font-sans tracking-wide border-red-500/30 hover:border-red-400 hover:bg-red-500/20 transition-all clip-diagonal"
                   onClick={() => handleAnswer(idx)}
                 >
@@ -354,13 +398,14 @@ export const SecretBosses: React.FC = () => {
 
   if (gameState === 'result') {
     const won = bossHealth <= 0;
+
     return (
       <div className="max-w-md mx-auto mt-20 text-center space-y-8 relative z-10">
         <Skull className={`w-24 h-24 mx-auto ${won ? 'text-yellow-400' : 'text-red-500'}`} />
         <h2 className="text-4xl font-display font-bold text-white uppercase tracking-widest">
-          {won ? 'Primordial Derrotado' : 'Aniquilación'}
+          {won ? 'Primordial Derrotado' : 'Aniquilacion'}
         </h2>
-        
+
         {won && lastLoot && (
           <div className={`p-6 border clip-diagonal bg-background/50 ${RARITY_COLORS[lastLoot.rarity]}`}>
             <h3 className="font-bold text-lg mb-2">{lastLoot.name}</h3>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { arrayUnion, doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -279,20 +279,20 @@ export const Trivia: React.FC = () => {
 
           // CRITICAL FIX: Usar updateDoc para agregar al array en lugar de reemplazar
           const docRef = doc(db, 'users', user.uid);
-          const currentInventory = profile.gearInventory || [];
-          const newInventory = [...currentInventory, droppedLoot];
 
           // Primero actualizar Firestore
           await updateDoc(docRef, {
-            gearInventory: newInventory
+            gearInventory: arrayUnion(droppedLoot)
           });
 
           // INMEDIATAMENTE después actualizar estado local
           // Usar functional update para evitar race conditions
           setProfile(prev => {
             if (!prev) return prev;
-            const updated = { ...prev, gearInventory: newInventory };
-            return updated;
+            return {
+              ...prev,
+              gearInventory: [...(prev.gearInventory || []), droppedLoot]
+            };
           });
 
           toast(`¡Botín Obtenido! ${droppedLoot.name}`, {

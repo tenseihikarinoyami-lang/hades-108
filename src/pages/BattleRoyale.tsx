@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Trophy, Users, Skull, Crown } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { arrayUnion, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { rollLoot } from '@/lib/rpg';
 
@@ -106,11 +106,11 @@ export const BattleRoyale: React.FC = () => {
       };
       
       if (loot) {
-        updates.gearInventory = [...(profile.gearInventory || []), loot];
+        updates.gearInventory = arrayUnion(loot);
       }
       
       if (!profile.titles?.includes('Sobreviviente Supremo')) {
-        updates.titles = [...(profile.titles || []), 'Sobreviviente Supremo'];
+        updates.titles = arrayUnion('Sobreviviente Supremo');
       }
       
       await updateDoc(docRef, updates);

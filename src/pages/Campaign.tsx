@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Map, Star, Lock, Shield, Swords, ArrowRight, Flame } from 'lucide-react';
 import { audio } from '@/lib/audio';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { arrayUnion, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { rollLoot } from '@/lib/rpg';
@@ -150,13 +150,13 @@ export const Campaign: React.FC = () => {
         if (selectedLevel.id % 3 === 0 || selectedLevel.id === saga.levels.length) {
           const loot = rollLoot(true);
           if (loot) {
-            updates.gearInventory = [...(profile.gearInventory || []), loot];
+            updates.gearInventory = arrayUnion(loot);
             toast.success(`¡Nivel Completado! Recompensa: ${loot.name}`);
           }
         }
         
         if (selectedLevel.id === saga.levels.length && !profile.titles?.includes(`Conquistador de ${saga.name}`)) {
-          updates.titles = [...(profile.titles || []), `Conquistador de ${saga.name}`];
+          updates.titles = arrayUnion(`Conquistador de ${saga.name}`);
         }
 
         await updateDoc(docRef, updates);

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { BookOpen, Star, Lock, Shield, Swords, ArrowRight } from 'lucide-react';
 import { audio } from '@/lib/audio';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { arrayUnion, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { rollLoot } from '@/lib/rpg';
@@ -109,12 +109,12 @@ export const SaintMode: React.FC = () => {
           // Saga completion reward
           const loot = rollLoot(true); // Boss loot
           if (loot) {
-            updates.gearInventory = [...(profile.gearInventory || []), loot];
+            updates.gearInventory = arrayUnion(loot);
             toast.success(`¡Saga Completada! Recompensa: ${loot.name}`);
           }
           const title = `Héroe de ${selectedSaga.name}`;
           if (!profile.titles?.includes(title)) {
-            updates.titles = [...(profile.titles || []), title];
+            updates.titles = arrayUnion(title);
           }
         }
         updates.saintModeProgress = { saga: nextSagaId, chapter: nextChapter };

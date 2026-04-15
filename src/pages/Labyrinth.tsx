@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Sparkles, Skull } from 'lucide-react';
 import { audio } from '@/lib/audio';
-import { doc, increment, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { rollLoot } from '@/lib/rpg';
@@ -181,7 +181,7 @@ export const Labyrinth: React.FC = () => {
 
     const docRef = doc(db, 'users', user.uid);
     await updateDoc(docRef, {
-      gearInventory: [...(profile.gearInventory || []), loot],
+      gearInventory: arrayUnion(loot),
       obolos: increment(tempScore)
     });
 

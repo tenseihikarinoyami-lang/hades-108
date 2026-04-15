@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -215,11 +215,16 @@ export const Tower: React.FC = () => {
         
         const newHighestFloor = Math.max(profile.highestTowerFloor || 0, currentFloor - 1);
         
-        await updateDoc(docRef, {
-          gearInventory: [...(profile.gearInventory || []), ...runLoot],
-          starFragments: (profile.starFragments || 0) + runStarFragments,
+        const updates: Record<string, any> = {
+          starFragments: increment(runStarFragments),
           highestTowerFloor: newHighestFloor
-        });
+        };
+
+        if (runLoot.length > 0) {
+          updates.gearInventory = arrayUnion(...runLoot);
+        }
+
+        await updateDoc(docRef, updates);
         
       } catch (error) {
         console.error("Error saving run results", error);
