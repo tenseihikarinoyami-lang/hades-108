@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { arrayUnion, doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
@@ -11,12 +11,27 @@ import { Shield, Zap, Skull, Flame, Trophy, Clock, Sparkles, PackageOpen, Snowfl
 import { audio } from '@/lib/audio';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { incrementStat, updateMissionProgress, checkAndAwardBadges } from '@/lib/engine';
-import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier, CLASS_BONUSES, getLevelFromXP } from '@/lib/rpg';
+import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier, CLASS_BONUSES, getLevelFromXP, calculateSetBonus, getSetBonusEffect } from '@/lib/rpg';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getCurrentCataclysm } from '@/lib/cataclysms';
+import { getSpecterBonuses, resolveSpecterForProfile } from '@/data/specters';
 
 export const Trivia: React.FC = () => {
   const { user, profile, setProfile, updateProfile } = useAuth();
+  const activeSpecter = resolveSpecterForProfile(profile || undefined);
+  const specterBonuses = getSpecterBonuses(profile || undefined);
+  const activeSetEffect = getSetBonusEffect(calculateSetBonus(profile?.equippedGear || {}));
+  const combatBonuses = useMemo(() => ({
+    damageMultiplier: specterBonuses.damageMultiplier * (activeSetEffect?.bonuses.damageMultiplier || 1),
+    bonusHealth: specterBonuses.bonusHealth + (activeSetEffect?.bonuses.healthBonus || 0),
+    bonusTime: specterBonuses.bonusTime + (activeSetEffect?.bonuses.timeBonus || 0),
+    lootChanceBonus: specterBonuses.lootChanceBonus + (activeSetEffect?.bonuses.lootChanceBonus || 0),
+    memoryDropBonus: specterBonuses.memoryDropBonus,
+    dodgeChance: specterBonuses.dodgeChance,
+    startingShields: specterBonuses.startingShields + (activeSetEffect?.bonuses.barrierShields || 0),
+    comboBonus: specterBonuses.comboBonus,
+    obolosMultiplier: specterBonuses.obolosMultiplier * (activeSetEffect?.bonuses.obolosMultiplier || 1),
+  }), [specterBonuses, activeSetEffect]);
 
   // Selection State
   const [selectedLevel, setSelectedLevel] = useState<TriviaLevel | null>(null);
@@ -51,6 +66,7 @@ export const Trivia: React.FC = () => {
   const [isTimeStopped, setIsTimeStopped] = useState(false);
   const [shieldActive, setShieldActive] = useState(false);
   const [highlightCorrect, setHighlightCorrect] = useState(false);
+  const [specterBarrierCharges, setSpecterBarrierCharges] = useState(0);
 
   // COMBO SYSTEM - Cadena de Victoria
   const [combo, setCombo] = useState(0);
@@ -86,16 +102,16 @@ export const Trivia: React.FC = () => {
     if (arena === 'oracle') {
       setIsGenerating(true);
       setIsOracleMode(true);
-      const generated = await generateInfiniteTrivia('Saint Seiya', 5, 'Difícil');
+      const generated = await generateInfiniteTrivia('Saint Seiya', 5, 'DifÃ­cil');
       if (generated.length > 0) {
         setOracleQuestions(generated);
       } else {
-        toast.error("El Oráculo no responde. Intenta de nuevo.");
+        toast.error("El OrÃ¡culo no responde. Intenta de nuevo.");
         setIsGenerating(false);
         return;
       }
       setIsGenerating(false);
-      setSelectedArena({ id: 'oracle', title: 'Oráculo de Delfos', description: 'Trivias Infinitas', questions: [] as any });
+      setSelectedArena({ id: 'oracle', title: 'OrÃ¡culo de Delfos', description: 'Trivias Infinitas', questions: [] as any });
     } else {
       setIsOracleMode(false);
       // Shuffle questions for the arena
@@ -122,6 +138,7 @@ export const Trivia: React.FC = () => {
     setIsBossStage(isFirstBoss);
     setLastLoot(null);
     setRunLoot([]);
+    setSpecterBarrierCharges(combatBonuses.startingShields);
 
     // Randomize enemy element for the first question
     const elements: Element[] = ['Fuego', 'Hielo', 'Rayo', 'Oscuridad', 'Neutral'];
@@ -141,6 +158,7 @@ export const Trivia: React.FC = () => {
     if (profile?.faction === 'Griffon') {
       initialTime += 3; // Griffon Passive: +3s
     }
+    initialTime += combatBonuses.bonusTime;
 
     let armorHealth = 0;
     if (profile?.equippedGear?.armor?.stats?.health) {
@@ -166,14 +184,14 @@ export const Trivia: React.FC = () => {
     // New Game+ Scaling
     const ngPlusMultiplier = (profile?.ascensionLevel || 0) >= 10 ? 2 : 1;
 
-    const finalHealth = Math.floor((100 + armorHealth + petHealthBonus) * cBonus.health);
+    const finalHealth = Math.floor((100 + armorHealth + petHealthBonus + combatBonuses.bonusHealth) * cBonus.health);
     const finalTime = Math.floor((initialTime + petTimeBonus) * cBonus.time);
 
     setPlayerHealth(finalHealth);
     setTimeLeft(finalTime);
 
     if (ngPlusMultiplier > 1) {
-      toast.error("⚠️ MODO NEW GAME+: Dificultad Extrema Detectada ⚠️", {
+      toast.error("âš ï¸ MODO NEW GAME+: Dificultad Extrema Detectada âš ï¸", {
         style: { background: 'rgba(255, 0, 0, 0.3)', border: '1px solid red', color: '#fff' }
       });
     }
@@ -195,12 +213,33 @@ export const Trivia: React.FC = () => {
     }
   };
 
+  const consumeProtectiveShield = () => {
+    if (shieldActive) {
+      setShieldActive(false);
+      return true;
+    }
+
+    if (specterBarrierCharges > 0) {
+      setSpecterBarrierCharges((current) => Math.max(0, current - 1));
+      return true;
+    }
+
+    return false;
+  };
+
   const handleTimeOut = () => {
+    if (consumeProtectiveShield()) {
+      toast.info(activeSpecter?.ability.name ? `La habilidad ${activeSpecter.ability.name} bloqueo el castigo.` : "Barrera protectora activada.");
+      audio.playSFX('shield');
+      moveToNextQuestion(true);
+      return;
+    }
+
     audio.playSFX('damage');
     triggerDamage('player');
     const nextPlayerHealth = Math.max(0, playerHealth - 20);
     setPlayerHealth(nextPlayerHealth);
-    toast.error("¡TIEMPO AGOTADO! Daño crítico recibido.");
+    toast.error("Â¡TIEMPO AGOTADO! DaÃ±o crÃ­tico recibido.");
     moveToNextQuestion(false, nextPlayerHealth);
   };
 
@@ -225,12 +264,13 @@ export const Trivia: React.FC = () => {
       if (newCombo >= 10) comboMultiplier = 3.0;
       else if (newCombo >= 5) comboMultiplier = 2.0;
       else if (newCombo >= 3) comboMultiplier = 1.5;
+      if (newCombo >= 3) comboMultiplier += combatBonuses.comboBonus;
 
       // Show combo popup
       if (newCombo >= 3) {
         setShowComboPopup(true);
         setTimeout(() => setShowComboPopup(false), 1500);
-        toast.success(`🔥 ¡COMBO x${newCombo}! Multiplicador x${comboMultiplier}`, {
+        toast.success(`ðŸ”¥ Â¡COMBO x${newCombo}! Multiplicador x${comboMultiplier}`, {
           style: { background: newCombo >= 10 ? 'rgba(255,0,0,0.3)' : 'rgba(255,165,0,0.2)', border: '1px solid orange', color: '#fff' }
         });
       }
@@ -260,7 +300,7 @@ export const Trivia: React.FC = () => {
       pointsEarned = Math.floor(pointsEarned * classBonus.damage);
 
       // COMBO MULTIPLIER aplicado
-      pointsEarned = Math.floor(pointsEarned * multiplier * comboMultiplier);
+      pointsEarned = Math.floor(pointsEarned * multiplier * comboMultiplier * combatBonuses.damageMultiplier);
 
       setScore(s => s + pointsEarned);
       setHiddenOptions([]); // Reset hidden options for next question
@@ -273,7 +313,7 @@ export const Trivia: React.FC = () => {
       // Loot Drop Logic with Fortune skill
       const baseLootChance = isBossStage ? 1.0 : 0.25;
       const fortuneBonus = (profile?.skills?.fortune || 0) * 0.02; // 2% per level
-      const totalLootChance = baseLootChance + fortuneBonus;
+      const totalLootChance = baseLootChance + fortuneBonus + combatBonuses.lootChanceBonus;
 
       if (Math.random() < totalLootChance) {
         const droppedLoot = rollLoot(isBossStage);
@@ -289,7 +329,7 @@ export const Trivia: React.FC = () => {
             gearInventory: arrayUnion(droppedLoot)
           });
 
-          // INMEDIATAMENTE después actualizar estado local
+          // INMEDIATAMENTE despuÃ©s actualizar estado local
           // Usar functional update para evitar race conditions
           setProfile(prev => {
             if (!prev) return prev;
@@ -299,17 +339,17 @@ export const Trivia: React.FC = () => {
             };
           });
 
-          toast(`¡Botín Obtenido! ${droppedLoot.name}`, {
+          toast(`Â¡BotÃ­n Obtenido! ${droppedLoot.name}`, {
             icon: <PackageOpen className={`w-5 h-5 ${RARITY_COLORS[droppedLoot.rarity].split(' ')[0]}`} />,
             style: { background: 'rgba(0,0,0,0.8)', border: `1px solid currentColor`, color: '#fff' }
           });
         }
       } else {
-        toast.success(isBossStage ? "¡GOLPE FINAL AL JEFE!" : "¡IMPACTO DIRECTO!");
+        toast.success(isBossStage ? "Â¡GOLPE FINAL AL JEFE!" : "Â¡IMPACTO DIRECTO!");
       }
 
       // Memory Fragment Drop Logic (5% chance)
-      if (Math.random() < 0.05 && user && profile) {
+      if (Math.random() < (0.05 + combatBonuses.memoryDropBonus) && user && profile) {
         const docRef = doc(db, 'users', user.uid);
         const currentFragments = profile.memoryFragments || 0;
         const newFragments = currentFragments + 1;
@@ -319,13 +359,13 @@ export const Trivia: React.FC = () => {
           memoryFragments: increment(1)
         });
 
-        // INMEDIATAMENTE después actualizar estado local
+        // INMEDIATAMENTE despuÃ©s actualizar estado local
         setProfile(prev => {
           if (!prev) return prev;
           return { ...prev, memoryFragments: newFragments };
         });
 
-        toast("¡Has encontrado un Fragmento de Memoria!", {
+        toast("Â¡Has encontrado un Fragmento de Memoria!", {
           icon: <Sparkles className="w-5 h-5 text-cyan-400" />,
           style: { background: 'rgba(6, 182, 212, 0.1)', border: '1px solid cyan', color: '#fff' }
         });
@@ -338,15 +378,15 @@ export const Trivia: React.FC = () => {
     } else {
       // COMBO SYSTEM - Reset combo al fallar
       if (combo >= 5) {
-        toast.error(`💔 ¡Combo roto! Terminaste con x${combo} respuestas consecutivas.`, {
+        toast.error(`ðŸ’” Â¡Combo roto! Terminaste con x${combo} respuestas consecutivas.`, {
           style: { background: 'rgba(255,0,0,0.2)', border: '1px solid red', color: '#fff' }
         });
       }
       setCombo(0);
 
-      if (shieldActive) {
-        setShieldActive(false);
-        toast.info("¡Escudo de Atenea activado! Daño bloqueado.");
+      if (consumeProtectiveShield()) {
+        setHighlightCorrect(false);
+        toast.info(activeSpecter?.ability.name ? `La habilidad ${activeSpecter.ability.name} bloqueo el impacto.` : "Barrera protectora activada.");
         audio.playSFX('shield');
         moveToNextQuestion(true);
         return;
@@ -355,7 +395,7 @@ export const Trivia: React.FC = () => {
         audio.playSFX('success'); // Maybe a shield sound?
         setGarudaShieldActive(false);
         setHighlightCorrect(false);
-        toast("¡Escudo de Garuda activado! Daño evadido.", {
+        toast("Â¡Escudo de Garuda activado! DaÃ±o evadido.", {
           icon: <Shield className="w-4 h-4 text-accent" />,
           style: { background: 'rgba(255, 165, 0, 0.1)', border: '1px solid orange', color: '#fff' }
         });
@@ -371,9 +411,9 @@ export const Trivia: React.FC = () => {
         }
 
         // Survival Skill: Evasion chance (5% per level)
-        const evasionChance = (profile?.skills?.survival || 0) * 0.05;
+        const evasionChance = (profile?.skills?.survival || 0) * 0.05 + combatBonuses.dodgeChance;
         if (Math.random() < evasionChance) {
-          toast.success("¡Evasión Exitosa! (Habilidad: Supervivencia)");
+          toast.success("Â¡EvasiÃ³n Exitosa! (Habilidad: Supervivencia)");
           damage = 0;
         } else {
           // Elemental Defense Calculation (Enemy attacks Player)
@@ -382,11 +422,11 @@ export const Trivia: React.FC = () => {
           damage = Math.floor(damage * defenseMultiplier);
 
           if (defenseMultiplier > 1) {
-            toast.error(isBossStage ? "¡GOLPE CRÍTICO DEL JEFE! (Súper Efectivo)" : "¡EVASIÓN FALLIDA! Daño crítico recibido.");
+            toast.error(isBossStage ? "Â¡GOLPE CRÃTICO DEL JEFE! (SÃºper Efectivo)" : "Â¡EVASIÃ“N FALLIDA! DaÃ±o crÃ­tico recibido.");
           } else if (defenseMultiplier < 1) {
-            toast.error("Daño recibido, pero tu armadura resistió parte del impacto.");
+            toast.error("DaÃ±o recibido, pero tu armadura resistiÃ³ parte del impacto.");
           } else {
-            toast.error(isBossStage ? "¡GOLPE DEL JEFE!" : "¡EVASIÓN FALLIDA! Daño recibido.");
+            toast.error(isBossStage ? "Â¡GOLPE DEL JEFE!" : "Â¡EVASIÃ“N FALLIDA! DaÃ±o recibido.");
           }
         }
 
@@ -420,7 +460,7 @@ export const Trivia: React.FC = () => {
 
       if (isNextBoss) {
         audio.playSFX('error');
-        toast.error("¡ADVERTENCIA! JEFE FINAL ACERCÁNDOSE", {
+        toast.error("Â¡ADVERTENCIA! JEFE FINAL ACERCÃNDOSE", {
           style: { background: 'rgba(255, 0, 0, 0.2)', border: '1px solid red', color: '#fff' }
         });
 
@@ -429,8 +469,8 @@ export const Trivia: React.FC = () => {
           const curses = ['Chronos', 'Caos', 'Nyx'];
           const curse = curses[Math.floor(Math.random() * curses.length)];
           setPrimordialCurse(curse);
-          toast.error(`⚠️ MALDICIÓN PRIMORDIAL: ${curse.toUpperCase()} ⚠️`, {
-            description: curse === 'Chronos' ? 'El tiempo fluye al doble de velocidad.' : curse === 'Caos' ? 'Las opciones se barajan constantemente.' : 'Las opciones están ocultas por la oscuridad.',
+          toast.error(`âš ï¸ MALDICIÃ“N PRIMORDIAL: ${curse.toUpperCase()} âš ï¸`, {
+            description: curse === 'Chronos' ? 'El tiempo fluye al doble de velocidad.' : curse === 'Caos' ? 'Las opciones se barajan constantemente.' : 'Las opciones estÃ¡n ocultas por la oscuridad.',
             style: { background: 'rgba(147, 51, 234, 0.3)', border: '1px solid purple', color: '#fff' }
           });
         }
@@ -469,6 +509,8 @@ export const Trivia: React.FC = () => {
           finalScore *= 2;
         }
 
+        earnedObolos = Math.floor(earnedObolos * combatBonuses.obolosMultiplier);
+
         // XP Logic
         const currentXP = profile.xp || 0;
         const newXP = currentXP + finalScore;
@@ -479,7 +521,7 @@ export const Trivia: React.FC = () => {
         let cosmosPointsGained = 0;
         if (newLevel > currentLevel) {
           cosmosPointsGained = newLevel - currentLevel;
-          toast.success(`¡Nivel de Espectro Aumentado! Eres nivel ${newLevel}. +${cosmosPointsGained} Puntos de Cosmos.`);
+          toast.success(`Â¡Nivel de Espectro Aumentado! Eres nivel ${newLevel}. +${cosmosPointsGained} Puntos de Cosmos.`);
         }
 
         if (runLoot.length > 0) {
@@ -568,7 +610,7 @@ export const Trivia: React.FC = () => {
 
       if (type === 'time_potion') {
         setTimeLeft(prev => prev + 10);
-        toast.success("Poción de Cronos: +10 Segundos");
+        toast.success("PociÃ³n de Cronos: +10 Segundos");
       } else if (type === 'healing_potion') {
         let armorHealth = 0;
         if (profile?.equippedGear?.armor?.stats?.health) {
@@ -576,7 +618,7 @@ export const Trivia: React.FC = () => {
         }
         const maxHealth = Math.floor((100 + armorHealth) * classBonus.health);
         setPlayerHealth(prev => Math.min(maxHealth, prev + 50));
-        toast.success("Lágrima de Atenea: +50 HP");
+        toast.success("LÃ¡grima de Atenea: +50 HP");
       } else if (type === 'clairvoyance_potion') {
         const q = isOracleMode ? oracleQuestions[currentQuestion] : selectedArena!.questions[currentQuestion];
         const wrongIndices = q.options
@@ -600,14 +642,14 @@ export const Trivia: React.FC = () => {
 
     if (profile.activePower === 'Cronos') {
       setIsTimeStopped(true);
-      toast.success("¡TIEMPO DETENIDO!");
+      toast.success("Â¡TIEMPO DETENIDO!");
       setTimeout(() => setIsTimeStopped(false), 10000);
     } else if (profile.activePower === 'Atenea') {
       setShieldActive(true);
-      toast.success("¡ESCUDO DE ATENEA ACTIVADO!");
+      toast.success("Â¡ESCUDO DE ATENEA ACTIVADO!");
     } else if (profile.activePower === 'Apolo') {
       setHighlightCorrect(true);
-      toast.success("¡VISIÓN DIVINA ACTIVADA!");
+      toast.success("Â¡VISIÃ“N DIVINA ACTIVADA!");
     }
   };
 
@@ -626,13 +668,33 @@ export const Trivia: React.FC = () => {
             {profile?.faction && (
               <div className="bg-background/50 border border-accent/20 p-4 clip-diagonal text-left space-y-2 max-w-2xl mx-auto mb-8">
                 <h4 className="font-display text-accent uppercase tracking-widest text-sm flex items-center gap-2">
-                  <Zap className="w-4 h-4" /> Pasiva de Facción Activa
+                  <Zap className="w-4 h-4" /> Pasiva de FacciÃ³n Activa
                 </h4>
                 <p className="text-xs font-mono text-muted-foreground">
-                  {profile.faction === 'Wyvern' && "Furia de Wyvern: +10% de daño (puntos) al acertar."}
+                  {profile.faction === 'Wyvern' && "Furia de Wyvern: +10% de daÃ±o (puntos) al acertar."}
                   {profile.faction === 'Griffon' && "Hilos de Griffon: +3 segundos extra para responder."}
                   {profile.faction === 'Garuda' && "Aleteo de Garuda: 1 Escudo de viento por partida (ignora el primer fallo)."}
                 </p>
+              </div>
+            )}
+
+            {activeSpecter && (
+              <div className="bg-background/50 border border-primary/20 p-4 clip-diagonal text-left space-y-2 max-w-2xl mx-auto -mt-4 mb-8">
+                <h4 className="font-display text-primary uppercase tracking-widest text-sm flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" /> Habilidad del Espectro
+                </h4>
+                <p className="text-sm text-white">{activeSpecter.ability.name}</p>
+                <p className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</p>
+              </div>
+            )}
+
+            {activeSetEffect && (
+              <div className="bg-background/50 border border-yellow-500/20 p-4 clip-diagonal text-left space-y-2 max-w-2xl mx-auto -mt-4 mb-8">
+                <h4 className="font-display text-yellow-400 uppercase tracking-widest text-sm flex items-center gap-2">
+                  <Shield className="w-4 h-4" /> Bono de Set Activo
+                </h4>
+                <p className="text-sm text-white">{activeSetEffect.title}</p>
+                <p className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</p>
               </div>
             )}
 
@@ -659,7 +721,7 @@ export const Trivia: React.FC = () => {
                     <Sparkles className="w-5 h-5 text-purple-500 group-hover:animate-pulse" />
                   </div>
                   <CardTitle className="font-display text-2xl text-white group-hover:text-purple-400 transition-colors uppercase tracking-wider">
-                    {isGenerating ? 'Invocando...' : 'Oráculo de Delfos'}
+                    {isGenerating ? 'Invocando...' : 'OrÃ¡culo de Delfos'}
                   </CardTitle>
                   <CardDescription className="text-muted-foreground">Trivias infinitas generadas por IA. La dificultad se adapta a tu cosmos.</CardDescription>
                 </CardHeader>
@@ -723,6 +785,7 @@ export const Trivia: React.FC = () => {
               <span>{profile?.specterName?.toUpperCase() || 'ESPECTRO'}</span>
               <span className="flex items-center gap-2">
                 {garudaShieldActive && <Shield className="w-3 h-3 text-orange-400" title="Escudo de Garuda" />}
+                {specterBarrierCharges > 0 && <Sparkles className="w-3 h-3 text-cyan-400" title={activeSpecter?.ability.name || 'Barrera espectral'} />}
                 <span className={playerHealth <= 25 ? 'text-primary animate-pulse' : ''}>{Math.max(0, playerHealth)}%</span>
               </span>
             </div>
@@ -750,10 +813,10 @@ export const Trivia: React.FC = () => {
           {combo >= 3 && (
             <div className="flex flex-col items-center">
               <div className={`text-2xl font-display font-bold ${combo >= 10 ? 'text-red-500 animate-pulse' : combo >= 5 ? 'text-orange-500' : 'text-yellow-400'} neon-text-primary`}>
-                🔥 x{combo}
+                ðŸ”¥ x{combo}
               </div>
               <div className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                {combo >= 10 ? '¡LEGENDARIO!' : combo >= 5 ? '¡ÉPICO!' : '¡COMBO!'}
+                {combo >= 10 ? 'Â¡LEGENDARIO!' : combo >= 5 ? 'Â¡Ã‰PICO!' : 'Â¡COMBO!'}
               </div>
             </div>
           )}
@@ -829,6 +892,15 @@ export const Trivia: React.FC = () => {
               })}
             </div>
 
+            {activeSpecter && (
+              <div className="mt-8 flex justify-center">
+                <div className="bg-primary/10 border border-primary/30 text-white px-5 py-3 clip-diagonal text-center max-w-xl">
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-primary/80">Espectro activo</div>
+                  <div className="font-display text-base tracking-wide">{activeSpecter.ability.name}</div>
+                </div>
+              </div>
+            )}
+
             {/* Primordial Power Button */}
             {profile?.activePower && (
               <div className="mt-8 flex justify-center">
@@ -863,7 +935,7 @@ export const Trivia: React.FC = () => {
                 <div className="absolute inset-0 bg-accent/20 blur-2xl rounded-full animate-pulse" />
                 <Trophy className="w-full h-full text-accent neon-text-accent relative z-10" />
               </div>
-              <h2 className="text-5xl font-display font-bold text-accent uppercase tracking-widest">¡Victoria!</h2>
+              <h2 className="text-5xl font-display font-bold text-accent uppercase tracking-widest">Â¡Victoria!</h2>
               <p className="text-muted-foreground font-mono tracking-widest text-sm">SISTEMA ENEMIGO DESTRUIDO.</p>
             </>
           ) : (
@@ -879,8 +951,29 @@ export const Trivia: React.FC = () => {
 
           <div className="p-6 glass-panel border-accent/30 clip-card relative overflow-hidden">
             <div className="absolute inset-0 scanline opacity-20 pointer-events-none" />
-            <p className="text-sm text-accent/70 uppercase tracking-widest mb-2 font-mono">Puntuación de Combate</p>
+            <p className="text-sm text-accent/70 uppercase tracking-widest mb-2 font-mono">PuntuaciÃ³n de Combate</p>
             <p className="text-5xl font-display font-bold text-white drop-shadow-[0_0_10px_rgba(0,240,255,0.5)]">{score}</p>
+          </div>
+
+          <div className="p-6 glass-panel border-accent/20 clip-card text-left space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div className="flex justify-between"><span className="text-muted-foreground">Combo maximo</span><span className="text-orange-400">x{maxCombo}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Botin obtenido</span><span className="text-yellow-400">{runLoot.length}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Vida restante</span><span className="text-green-400">{Math.max(0, playerHealth)}%</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Barrera restante</span><span className="text-cyan-400">{specterBarrierCharges}</span></div>
+            </div>
+            {activeSpecter && (
+              <div className="pt-3 border-t border-accent/10">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Espectro activo</div>
+                <div className="text-sm text-white">{activeSpecter.ability.name}</div>
+              </div>
+            )}
+            {activeSetEffect && (
+              <div className="pt-3 border-t border-accent/10">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-yellow-400">Set activo</div>
+                <div className="text-sm text-white">{activeSetEffect.title}</div>
+              </div>
+            )}
           </div>
 
           <Button onClick={() => { audio.playSFX('click'); setGameState('selection'); }} className="w-full bg-accent/20 hover:bg-accent/40 text-accent border border-accent/50 clip-diagonal py-6 font-bold tracking-widest uppercase transition-all hover:neon-border group" onMouseEnter={() => audio.playSFX('hover')}>

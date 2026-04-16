@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const geminiApiKey = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY;
   return {
     plugins: [
       react(), 
@@ -17,7 +18,7 @@ export default defineConfig(({mode}) => {
           clientsClaim: true,
           skipWaiting: true,
         },
-        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+        includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'mask-icon.svg'],
         manifest: {
           name: 'Hades: Underworld Protocol',
           short_name: 'Hades',
@@ -39,7 +40,7 @@ export default defineConfig(({mode}) => {
       })
     ],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(geminiApiKey),
     },
     resolve: {
       alias: {

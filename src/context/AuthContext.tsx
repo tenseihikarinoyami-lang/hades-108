@@ -4,6 +4,19 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 import { Equipment, SpecterClass, Gem } from '../lib/rpg';
+import { getSpecterById, getSpecterByName } from '../data/specters';
+
+export interface GearPreset {
+  id: 'arena' | 'tower' | 'labyrinth';
+  name: string;
+  description: string;
+  equippedGear: {
+    weapon?: Equipment | null;
+    armor?: Equipment | null;
+    artifact?: Equipment | null;
+  };
+  updatedAt: number | null;
+}
 
 export interface UserProfile {
   uid: string;
@@ -11,7 +24,10 @@ export interface UserProfile {
   displayName?: string;
   photoURL?: string;
   role: 'Juez' | 'Espectro';
+  specterId?: string;
   specterName?: string;
+  specterAbilityName?: string;
+  specterAbilityDescription?: string;
   score: number;
   createdAt: number;
   faction?: 'Wyvern' | 'Griffon' | 'Garuda' | '';
@@ -49,6 +65,7 @@ export interface UserProfile {
     armor?: Equipment | null;
     artifact?: Equipment | null;
   };
+  gearPresets?: GearPreset[];
   activeFrame?: string;
   activeColor?: string;
   starFragments?: number;
@@ -155,6 +172,29 @@ const cloneEquippedGear = () => ({ ...DEFAULT_EQUIPPED_GEAR });
 const cloneConsumables = () => ({ ...DEFAULT_CONSUMABLES });
 const cloneSkills = () => ({ ...DEFAULT_SKILLS });
 const cloneMaterials = () => ({ ...DEFAULT_MATERIALS });
+const cloneGearPresets = (): GearPreset[] => [
+  {
+    id: 'arena',
+    name: 'Arena',
+    description: 'Preset rapido para Arena y desafios cortos.',
+    equippedGear: cloneEquippedGear(),
+    updatedAt: null,
+  },
+  {
+    id: 'tower',
+    name: 'Torre',
+    description: 'Preset orientado a runs largas y supervivencia.',
+    equippedGear: cloneEquippedGear(),
+    updatedAt: null,
+  },
+  {
+    id: 'labyrinth',
+    name: 'Laberinto',
+    description: 'Preset para exploracion, reliquias y riesgo continuo.',
+    equippedGear: cloneEquippedGear(),
+    updatedAt: null,
+  },
+];
 
 const createNewProfile = (firebaseUser: FirebaseUser): UserProfile => {
   const today = new Date().toISOString().split('T')[0];
@@ -174,6 +214,7 @@ const createNewProfile = (firebaseUser: FirebaseUser): UserProfile => {
     inventory: [],
     gearInventory: [],
     equippedGear: cloneEquippedGear(),
+    gearPresets: cloneGearPresets(),
     activeFrame: 'default',
     activeColor: 'text-white',
     starFragments: 0,
@@ -211,6 +252,7 @@ const createNewProfile = (firebaseUser: FirebaseUser): UserProfile => {
 
 const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; needsUpdate: boolean } => {
   const today = new Date().toISOString().split('T')[0];
+  const defaultGearPresets = cloneGearPresets();
   const normalizedProfile: UserProfile = {
     ...data,
     badges: data.badges ? [...data.badges] : undefined,
@@ -221,6 +263,12 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
     inventory: data.inventory ? [...data.inventory] : undefined,
     gearInventory: data.gearInventory ? [...data.gearInventory] : undefined,
     equippedGear: data.equippedGear ? { ...data.equippedGear } : undefined,
+    gearPresets: data.gearPresets
+      ? data.gearPresets.map((preset) => ({
+          ...preset,
+          equippedGear: preset.equippedGear ? { ...preset.equippedGear } : cloneEquippedGear(),
+        }))
+      : undefined,
     claimedPassRewards: data.claimedPassRewards ? [...data.claimedPassRewards] : undefined,
     soulTree: data.soulTree ? { ...data.soulTree } : undefined,
     materials: data.materials ? { ...data.materials } : undefined,
@@ -233,6 +281,34 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
     stats: data.stats ? { ...data.stats } : undefined,
   };
   let needsUpdate = false;
+  const resolvedSpecter = getSpecterById(normalizedProfile.specterId) || getSpecterByName(normalizedProfile.specterName);
+
+  if (resolvedSpecter) {
+    if (normalizedProfile.specterId !== resolvedSpecter.id) {
+      normalizedProfile.specterId = resolvedSpecter.id;
+      needsUpdate = true;
+    }
+    const shouldReplacePhoto =
+      !normalizedProfile.photoURL ||
+      normalizedProfile.photoURL.includes('unsplash.com') ||
+      normalizedProfile.photoURL.includes('dicebear.com');
+    if (shouldReplacePhoto && normalizedProfile.photoURL !== resolvedSpecter.logo) {
+      normalizedProfile.photoURL = resolvedSpecter.logo;
+      needsUpdate = true;
+    }
+    if (!normalizedProfile.faction) {
+      normalizedProfile.faction = resolvedSpecter.faction;
+      needsUpdate = true;
+    }
+    if (normalizedProfile.specterAbilityName !== resolvedSpecter.ability.name) {
+      normalizedProfile.specterAbilityName = resolvedSpecter.ability.name;
+      needsUpdate = true;
+    }
+    if (normalizedProfile.specterAbilityDescription !== resolvedSpecter.ability.description) {
+      normalizedProfile.specterAbilityDescription = resolvedSpecter.ability.description;
+      needsUpdate = true;
+    }
+  }
 
   if (!normalizedProfile.stats) {
     normalizedProfile.stats = {
@@ -313,6 +389,34 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
   if (!normalizedProfile.equippedGear) {
     normalizedProfile.equippedGear = cloneEquippedGear();
     needsUpdate = true;
+  }
+  if (!normalizedProfile.gearPresets || normalizedProfile.gearPresets.length === 0) {
+    normalizedProfile.gearPresets = defaultGearPresets;
+    needsUpdate = true;
+  } else {
+    const presetMap = new Map(normalizedProfile.gearPresets.map((preset) => [preset.id, preset]));
+    const mergedPresets = defaultGearPresets.map((preset) => {
+      const existing = presetMap.get(preset.id);
+      if (!existing) {
+        needsUpdate = true;
+        return preset;
+      }
+
+      return {
+        ...preset,
+        ...existing,
+        equippedGear: existing.equippedGear ? { ...cloneEquippedGear(), ...existing.equippedGear } : cloneEquippedGear(),
+      };
+    });
+
+    if (
+      mergedPresets.length !== normalizedProfile.gearPresets.length ||
+      mergedPresets.some((preset, index) => normalizedProfile.gearPresets?.[index]?.id !== preset.id)
+    ) {
+      needsUpdate = true;
+    }
+
+    normalizedProfile.gearPresets = mergedPresets;
   }
   if (normalizedProfile.starFragments === undefined) {
     normalizedProfile.starFragments = 0;

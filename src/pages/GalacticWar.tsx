@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Swords, Search, Shield, Trophy, Target } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { getCombatContext } from '@/lib/combat';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -30,6 +31,7 @@ interface PvPChallenge {
 
 export const GalacticWar: React.FC = () => {
   const { user, profile } = useAuth();
+  const { activeSpecter, bonuses: combatBonuses } = useMemo(() => getCombatContext(profile), [profile]);
   const [users, setUsers] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<PvPChallenge[]>([]);
   const [gameState, setGameState] = useState<'lobby' | 'playing' | 'result'>('lobby');
@@ -82,7 +84,7 @@ export const GalacticWar: React.FC = () => {
     setIsGenerating(true);
     const generated = await generateInfiniteTrivia('Espectro', 5);
     if (generated.length === 0) {
-      toast.error("Error al generar el desafío.");
+      toast.error("Error al generar el desafÃ­o.");
       setIsGenerating(false);
       return;
     }
@@ -128,7 +130,7 @@ export const GalacticWar: React.FC = () => {
 
     if (isCorrect) {
       audio.playSFX('success');
-      setScore(s => s + 100);
+      setScore(s => s + Math.floor(100 * combatBonuses.damageMultiplier));
     } else {
       audio.playSFX('damage');
     }
@@ -155,7 +157,7 @@ export const GalacticWar: React.FC = () => {
         challengerScore: score,
         challengerTime: timeSpent
       });
-      toast.success("Desafío enviado. Esperando respuesta del rival.");
+      toast.success("DesafÃ­o enviado. Esperando respuesta del rival.");
     } else {
       // Complete challenge
       const challengerScore = activeChallenge.challengerScore;
@@ -181,12 +183,12 @@ export const GalacticWar: React.FC = () => {
       // Reward winner (simplified)
       if (winnerId === user.uid) {
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { obolos: increment(50) });
-        toast.success("¡Has ganado el duelo! +50 Óbolos");
+        await updateDoc(userRef, { obolos: increment(Math.floor(50 * combatBonuses.obolosMultiplier)) });
+        toast.success("Â¡Has ganado el duelo! +50 Ã“bolos");
       } else if (winnerId !== 'tie') {
         toast.error("Has perdido el duelo.");
       } else {
-        toast("Empate técnico.");
+        toast("Empate tÃ©cnico.");
       }
     }
 
@@ -198,10 +200,18 @@ export const GalacticWar: React.FC = () => {
       <div className="max-w-6xl mx-auto space-y-8 relative z-10">
         <div className="text-center space-y-4 mb-12">
           <h1 className="text-5xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 neon-text-accent uppercase tracking-[0.2em]">
-            Guerra Galáctica
+            Guerra GalÃ¡ctica
           </h1>
-          <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">Combate Asíncrono</p>
+          <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">Combate AsÃ­ncrono</p>
         </div>
+
+        {activeSpecter && (
+          <div className="max-w-2xl mx-auto bg-background/50 border border-cyan-500/20 p-4 clip-diagonal text-left space-y-2 mb-8">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Habilidad del Espectro</p>
+            <p className="font-display text-lg text-white">{activeSpecter.ability.name}</p>
+            <p className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Active/Past Challenges */}
@@ -249,7 +259,7 @@ export const GalacticWar: React.FC = () => {
                             {c.winnerId === user?.uid ? 'VICTORIA' : c.winnerId === 'tie' ? 'EMPATE' : 'DERROTA'}
                           </p>
                           <p className="text-[10px] font-mono text-muted-foreground">
-                            Tú: {isChallenger ? c.challengerScore : c.targetScore} | Rival: {isChallenger ? c.targetScore : c.challengerScore}
+                            TÃº: {isChallenger ? c.challengerScore : c.targetScore} | Rival: {isChallenger ? c.targetScore : c.challengerScore}
                           </p>
                         </div>
                       )}
@@ -277,7 +287,7 @@ export const GalacticWar: React.FC = () => {
                     </Avatar>
                     <div>
                       <p className="font-bold text-sm">{u.specterName || u.displayName}</p>
-                      <p className="text-xs font-mono text-muted-foreground">Facción: {u.faction || 'Ninguna'}</p>
+                      <p className="text-xs font-mono text-muted-foreground">FacciÃ³n: {u.faction || 'Ninguna'}</p>
                     </div>
                   </div>
                   <Button
@@ -333,7 +343,7 @@ export const GalacticWar: React.FC = () => {
         <Trophy className="w-24 h-24 text-cyan-400 mx-auto animate-pulse" />
         <h2 className="text-4xl font-display font-bold text-white uppercase tracking-widest">Duelo Finalizado</h2>
         <div className="p-6 glass-panel border-cyan-500/30 clip-card space-y-4">
-          <p className="font-mono text-lg">Puntuación: <span className="text-cyan-400 font-bold">{score}</span></p>
+          <p className="font-mono text-lg">PuntuaciÃ³n: <span className="text-cyan-400 font-bold">{score}</span></p>
           <p className="font-mono text-lg">Tiempo: <span className="text-yellow-400 font-bold">{timeSpent}s</span></p>
         </div>
         <Button onClick={() => setGameState('lobby')} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white clip-diagonal py-6 uppercase tracking-widest">
@@ -345,3 +355,4 @@ export const GalacticWar: React.FC = () => {
 
   return null;
 };
+

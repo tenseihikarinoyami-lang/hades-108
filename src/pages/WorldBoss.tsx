@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { arrayUnion, doc, onSnapshot, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayUnion, doc, increment, onSnapshot, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Flame, Shield, Skull, Swords, Trophy } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { getCombatContext } from '@/lib/combat';
 import { GeneratedTrivia, generateInfiniteTrivia } from '@/lib/gemini';
 import { Equipment, rollLoot } from '@/lib/rpg';
 
@@ -36,6 +37,10 @@ const createWorldBossReward = (): Equipment => {
 
 export const WorldBoss: React.FC = () => {
   const { user, profile } = useAuth();
+  const { activeSpecter, activeSetBonus, activeSetEffect, bonuses: combatBonuses } = useMemo(
+    () => getCombatContext(profile),
+    [profile]
+  );
   const [bossData, setBossData] = useState<any>(INITIAL_BOSS_STATE);
   const [gameState, setGameState] = useState<'info' | 'playing' | 'result'>('info');
   const [questions, setQuestions] = useState<GeneratedTrivia[]>([]);
@@ -43,6 +48,8 @@ export const WorldBoss: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [damageDealt, setDamageDealt] = useState(0);
   const [isWeekend, setIsWeekend] = useState(false);
+  const [correctHits, setCorrectHits] = useState(0);
+  const [finalRewards, setFinalRewards] = useState<string[]>([]);
 
   useEffect(() => {
     const day = new Date().getDay();
@@ -77,6 +84,8 @@ export const WorldBoss: React.FC = () => {
       setQuestions(generated);
       setCurrentQ(0);
       setDamageDealt(0);
+      setCorrectHits(0);
+      setFinalRewards([]);
       setGameState('playing');
       audio.playSFX('click');
     } else {
@@ -93,8 +102,9 @@ export const WorldBoss: React.FC = () => {
 
     if (isCorrect) {
       audio.playSFX('success');
-      const damage = 1000 + (profile?.level || 1) * 100;
+      const damage = Math.round((1000 + (profile?.level || 1) * 100) * combatBonuses.damageMultiplier);
       setDamageDealt((prev) => prev + damage);
+      setCorrectHits((prev) => prev + 1);
 
       const bossRef = doc(db, 'world_boss', BOSS_ID);
       const result = await runTransaction(db, async (transaction) => {
@@ -130,12 +140,16 @@ export const WorldBoss: React.FC = () => {
 
       if (result.defeatedNow) {
         const reward = createWorldBossReward();
+        const bonusReward = Math.random() < combatBonuses.lootChanceBonus ? createWorldBossReward() : null;
+        const obolosReward = combatBonuses.obolosMultiplier > 1 ? Math.floor(500 * combatBonuses.obolosMultiplier) : 0;
+        setFinalRewards([reward.name, ...(bonusReward ? [bonusReward.name] : []), ...(obolosReward > 0 ? [`${obolosReward} obolos`] : []), UNIQUE_TITLE]);
         await updateDoc(doc(db, 'users', user.uid), {
-          gearInventory: arrayUnion(reward),
+          gearInventory: bonusReward ? arrayUnion(reward, bonusReward) : arrayUnion(reward),
           titles: arrayUnion(UNIQUE_TITLE),
+          ...(obolosReward > 0 ? { obolos: increment(obolosReward) } : {}),
         });
 
-        toast.success(`Has asestado el golpe final. Recompensa: ${reward.name} + titulo unico.`);
+        toast.success(`Has asestado el golpe final. Recompensa: ${reward.name}${bonusReward ? ` y ${bonusReward.name}` : ''} + titulo unico.`);
       }
     } else {
       audio.playSFX('damage');
@@ -172,6 +186,20 @@ export const WorldBoss: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-12 space-y-8 text-center">
+            {activeSpecter && (
+              <div className="max-w-2xl mx-auto bg-background/50 border border-cyan-500/20 p-4 clip-diagonal text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Habilidad del Espectro</p>
+                <p className="font-display text-lg text-white">{activeSpecter.ability.name}</p>
+                <p className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</p>
+              </div>
+            )}
+            {activeSetEffect && (
+              <div className="max-w-2xl mx-auto bg-background/50 border border-yellow-500/20 p-4 clip-diagonal text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-yellow-400">Bono de Set Activo</p>
+                <p className="font-display text-lg text-white">{activeSetEffect.title}</p>
+                <p className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</p>
+              </div>
+            )}
             <div className="space-y-4">
               <div className="flex justify-between text-xs font-mono text-red-400 uppercase tracking-widest">
                 <span>Vida de Typhon</span>
@@ -251,12 +279,36 @@ export const WorldBoss: React.FC = () => {
 
   if (gameState === 'result') {
     return (
-      <div className="max-w-md mx-auto mt-20 text-center space-y-8 relative z-10">
+      <div className="max-w-xl mx-auto mt-20 text-center space-y-8 relative z-10">
         <Flame className="w-24 h-24 text-red-500 mx-auto animate-pulse" />
         <h2 className="text-4xl font-display font-bold text-white uppercase tracking-widest">Asalto finalizado</h2>
-        <div className="p-8 glass-panel border-red-500/30 clip-card">
-          <p className="text-sm text-muted-foreground uppercase tracking-widest mb-2 font-mono">Dano infligido en esta ronda</p>
-          <p className="text-5xl font-display font-bold text-red-500 neon-text-primary">{damageDealt.toLocaleString()}</p>
+        <div className="p-8 glass-panel border-red-500/30 clip-card space-y-4 text-left">
+          <div>
+            <p className="text-sm text-muted-foreground uppercase tracking-widest mb-2 font-mono">Dano infligido en esta ronda</p>
+            <p className="text-5xl font-display font-bold text-red-500 neon-text-primary">{damageDealt.toLocaleString()}</p>
+          </div>
+          <div className="flex justify-between text-sm font-mono">
+            <span className="text-muted-foreground">Impactos correctos</span>
+            <span className="text-white">{correctHits}</span>
+          </div>
+          <div className="flex justify-between text-sm font-mono">
+            <span className="text-muted-foreground">Contribucion acumulada</span>
+            <span className="text-cyan-400">{(bossData?.contributors?.[user?.uid || ''] || 0).toLocaleString()}</span>
+          </div>
+          {finalRewards.length > 0 && (
+            <div className="space-y-2 pt-2 border-t border-red-500/10">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">Recompensas del golpe final</div>
+              {finalRewards.map((reward) => (
+                <div key={reward} className="text-sm font-mono text-white">{reward}</div>
+              ))}
+            </div>
+          )}
+          {activeSetEffect && (
+            <div className="pt-2 border-t border-yellow-500/10">
+              <div className="text-xs uppercase tracking-widest text-yellow-400">{activeSetBonus}</div>
+              <div className="text-sm text-white">{activeSetEffect.title}</div>
+            </div>
+          )}
         </div>
         <Button onClick={() => setGameState('info')} className="w-full bg-red-600 hover:bg-red-500 text-white clip-diagonal py-6 uppercase tracking-widest">
           Volver al campamento

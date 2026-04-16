@@ -26,6 +26,7 @@ import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { rollGem, Equipment, RARITY_COLORS, SetType, GearType, Element } from '@/lib/rpg';
+import { getCombatContext } from '@/lib/combat';
 
 type BossEffect = 'time_warp' | 'scramble' | 'hide_options' | 'drain' | 'short_time';
 
@@ -66,6 +67,23 @@ type BossDefinition = {
   timeLimit: number;
 };
 
+const getBossCounterStrategy = (effect: BossEffect) => {
+  switch (effect) {
+    case 'time_warp':
+      return 'Prioriza bonus de tiempo, espectros tempo y sets que extiendan el reloj.';
+    case 'scramble':
+      return 'Apuesta por dano alto y lectura rapida para castigar antes de que el texto se distorsione.';
+    case 'hide_options':
+      return 'Aprovecha memoria del tema y barreras, porque tendras menos opciones visibles.';
+    case 'drain':
+      return 'Lleva vida adicional, barreras y control del ritmo para aguantar el drenaje.';
+    case 'short_time':
+      return 'Las reliquias de tiempo y los presets de reaccion rapida son la mejor respuesta.';
+    default:
+      return 'Adapta tu build al efecto del jefe.';
+  }
+};
+
 const SECRET_BOSSES: BossDefinition[] = [
   { id: 'Chronos', title: 'Chronos', description: 'El tiempo corre el doble de rapido.', icon: Clock, iconClass: 'text-yellow-400', cardBorder: 'border-yellow-500/30', cardGlow: 'from-yellow-900/10', buttonClass: 'bg-yellow-600 hover:bg-yellow-500', effect: 'time_warp', element: 'Neutral', rewardTitle: 'Asesino de Chronos', timeLimit: 10 },
   { id: 'Caos', title: 'Caos', description: 'La realidad se distorsiona y el texto se corrompe.', icon: EyeOff, iconClass: 'text-purple-400', cardBorder: 'border-purple-500/30', cardGlow: 'from-purple-900/10', buttonClass: 'bg-purple-600 hover:bg-purple-500', effect: 'scramble', element: 'Oscuridad', rewardTitle: 'Vencedor del Caos', timeLimit: 10 },
@@ -91,6 +109,14 @@ const SECRET_BOSSES: BossDefinition[] = [
 
 export const SecretBosses: React.FC = () => {
   const { user, profile } = useAuth();
+  const { activeSpecter, activeSetBonus, activeSetEffect, bonuses: combatBonuses } = useMemo(
+    () => getCombatContext(profile),
+    [profile]
+  );
+  const defeatedBosses = useMemo(
+    () => SECRET_BOSSES.filter((boss) => profile?.titles?.includes(boss.rewardTitle)).length,
+    [profile?.titles]
+  );
   const [gameState, setGameState] = useState<'lobby' | 'playing' | 'result'>('lobby');
   const [selectedBoss, setSelectedBoss] = useState<SecretBoss | null>(null);
   const [questions, setQuestions] = useState<GeneratedTrivia[]>([]);
@@ -100,7 +126,12 @@ export const SecretBosses: React.FC = () => {
   const [bossHealth, setBossHealth] = useState(100);
   const [playerHealth, setPlayerHealth] = useState(100);
   const [lastLoot, setLastLoot] = useState<Equipment | null>(null);
+  const [bonusLoot, setBonusLoot] = useState<Equipment | null>(null);
+  const [rewardGemName, setRewardGemName] = useState('');
+  const [rewardObolos, setRewardObolos] = useState(0);
+  const [rewardMemory, setRewardMemory] = useState(0);
   const [hiddenOptions, setHiddenOptions] = useState<number[]>([]);
+  const [specterBarrierCharges, setSpecterBarrierCharges] = useState(0);
 
   const selectedBossData = useMemo(
     () => SECRET_BOSSES.find((boss) => boss.id === selectedBoss) || null,
@@ -132,6 +163,23 @@ export const SecretBosses: React.FC = () => {
     return () => clearInterval(timer);
   }, [timeLeft, gameState, selectedBossData]);
 
+  const absorbIncomingHit = () => {
+    if (specterBarrierCharges > 0) {
+      setSpecterBarrierCharges((current) => Math.max(0, current - 1));
+      toast.info(activeSpecter?.ability.name ? `La habilidad ${activeSpecter.ability.name} bloqueo el castigo.` : 'Barrera espectral activada.');
+      audio.playSFX('shield');
+      return true;
+    }
+
+    if (Math.random() < combatBonuses.dodgeChance) {
+      toast.success(activeSpecter?.ability.name ? `${activeSpecter.ability.name}: evasion perfecta.` : 'Evasion exitosa.');
+      audio.playSFX('success');
+      return true;
+    }
+
+    return false;
+  };
+
   const handleChallenge = async (bossId: SecretBoss) => {
     if (!user || !profile) return;
     if ((profile.memoryFragments || 0) < 5) {
@@ -161,10 +209,15 @@ export const SecretBosses: React.FC = () => {
       setQuestions(generated);
       setCurrentQ(0);
       setBossHealth(100);
-      setPlayerHealth(100);
-      setTimeLeft(bossData.timeLimit);
+      setPlayerHealth(100 + combatBonuses.bonusHealth);
+      setTimeLeft(bossData.timeLimit + combatBonuses.bonusTime);
       setLastLoot(null);
+      setBonusLoot(null);
+      setRewardGemName('');
+      setRewardObolos(0);
+      setRewardMemory(0);
       setHiddenOptions([]);
+      setSpecterBarrierCharges(combatBonuses.startingShields);
       setGameState('playing');
       audio.playSFX('click');
     } catch (error) {
@@ -188,7 +241,7 @@ export const SecretBosses: React.FC = () => {
     if (currentQ + 1 < questions.length) {
       const nextQuestion = currentQ + 1;
       setCurrentQ(nextQuestion);
-      setTimeLeft(selectedBossData?.timeLimit || 10);
+      setTimeLeft((selectedBossData?.timeLimit || 10) + combatBonuses.bonusTime);
 
       if (selectedBossData?.effect === 'hide_options') {
         const nextTrivia = questions[nextQuestion];
@@ -212,6 +265,11 @@ export const SecretBosses: React.FC = () => {
   };
 
   const handleTimeOut = () => {
+    if (absorbIncomingHit()) {
+      moveToNext(playerHealth, bossHealth);
+      return;
+    }
+
     audio.playSFX('damage');
     const nextPlayerHealth = Math.max(0, playerHealth - 30);
     setPlayerHealth(nextPlayerHealth);
@@ -225,10 +283,16 @@ export const SecretBosses: React.FC = () => {
 
     if (isCorrect) {
       audio.playSFX('success');
-      const nextBossHealth = Math.max(0, bossHealth - 10);
+      const bossDamage = Math.max(10, Math.round(10 * combatBonuses.damageMultiplier));
+      const nextBossHealth = Math.max(0, bossHealth - bossDamage);
       setBossHealth(nextBossHealth);
       toast.success('Impacto al Primordial.');
       moveToNext(playerHealth, nextBossHealth);
+      return;
+    }
+
+    if (absorbIncomingHit()) {
+      moveToNext(playerHealth, bossHealth);
       return;
     }
 
@@ -272,15 +336,23 @@ export const SecretBosses: React.FC = () => {
     }
 
     const loot = generateGodLoot(selectedBossData);
+    const extraLoot = Math.random() < combatBonuses.lootChanceBonus ? generateGodLoot(selectedBossData) : null;
     const gem = rollGem();
+    const obolosReward = Math.floor(1000 * combatBonuses.obolosMultiplier);
+    const memoryReward = Math.random() < combatBonuses.memoryDropBonus ? 1 : 0;
 
     setLastLoot(loot);
+    setBonusLoot(extraLoot);
+    setRewardGemName(gem.name);
+    setRewardObolos(obolosReward);
+    setRewardMemory(memoryReward);
     const docRef = doc(db, 'users', user.uid);
 
     const updates: Record<string, any> = {
-      gearInventory: arrayUnion(loot),
+      gearInventory: extraLoot ? arrayUnion(loot, extraLoot) : arrayUnion(loot),
       gems: arrayUnion(gem),
-      obolos: increment(1000)
+      obolos: increment(obolosReward),
+      ...(memoryReward > 0 ? { memoryFragments: increment(memoryReward) } : {})
     };
 
     if (!profile.titles?.includes(selectedBossData.rewardTitle)) {
@@ -288,7 +360,7 @@ export const SecretBosses: React.FC = () => {
     }
 
     await updateDoc(docRef, updates);
-    toast.success(`Has derrotado a ${selectedBossData.title}. +1000 Obolos | Gema: ${gem.name}`);
+    toast.success(`Has derrotado a ${selectedBossData.title}. +${obolosReward} Obolos | Gema: ${gem.name}${extraLoot ? ` | Botin extra: ${extraLoot.name}` : ''}`);
   };
 
   const scrambleText = (text: string) => {
@@ -317,20 +389,47 @@ export const SecretBosses: React.FC = () => {
             <div className="px-3 py-1 border border-purple-500/40 bg-purple-500/10 text-xs font-mono uppercase tracking-widest text-purple-300">
               {SECRET_BOSSES.length} Primordiales Disponibles
             </div>
+            <div className="px-3 py-1 border border-green-500/40 bg-green-500/10 text-xs font-mono uppercase tracking-widest text-green-300">
+              Codex: {defeatedBosses}/{SECRET_BOSSES.length}
+            </div>
           </div>
+          {activeSpecter && (
+            <div className="max-w-2xl mx-auto mt-6 bg-background/50 border border-cyan-500/20 p-4 clip-diagonal text-left space-y-2">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Habilidad del Espectro</p>
+              <p className="font-display text-lg text-white">{activeSpecter.ability.name}</p>
+              <p className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</p>
+            </div>
+          )}
+          {activeSetEffect && (
+            <div className="max-w-2xl mx-auto mt-4 bg-background/50 border border-yellow-500/20 p-4 clip-diagonal text-left space-y-2">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-yellow-400">Bono de Set Activo</p>
+              <p className="font-display text-lg text-white">{activeSetEffect.title}</p>
+              <p className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {SECRET_BOSSES.map((boss) => {
             const Icon = boss.icon;
+            const isDefeated = profile?.titles?.includes(boss.rewardTitle);
 
             return (
               <Card key={boss.id} className={`glass-panel ${boss.cardBorder} clip-card relative overflow-hidden group`}>
                 <div className={`absolute inset-0 bg-gradient-to-b ${boss.cardGlow} to-transparent pointer-events-none`} />
                 <CardHeader className="text-center border-b border-white/10 bg-background/40">
+                  <div className="flex items-center justify-center gap-2 mb-3">
+                    <span className={`px-2 py-1 text-[10px] font-mono uppercase tracking-widest border ${isDefeated ? 'border-green-500/40 bg-green-500/10 text-green-300' : 'border-red-500/30 bg-red-500/10 text-red-300'}`}>
+                      {isDefeated ? 'Derrotado' : 'No derrotado'}
+                    </span>
+                    <span className="px-2 py-1 text-[10px] font-mono uppercase tracking-widest border border-accent/20 bg-background/50 text-accent">
+                      {boss.timeLimit <= 5 ? 'Ritmo brutal' : 'Resistencia'}
+                    </span>
+                  </div>
                   <Icon className={`w-12 h-12 mx-auto mb-4 ${boss.iconClass}`} />
                   <CardTitle className="font-display text-2xl text-white tracking-widest uppercase">{boss.title}</CardTitle>
                   <p className="text-xs font-mono text-muted-foreground mt-2">{boss.description}</p>
+                  <p className="text-[11px] font-mono text-yellow-300 mt-3">{getBossCounterStrategy(boss.effect)}</p>
                 </CardHeader>
                 <CardContent className="p-6 text-center">
                   <Button
@@ -360,7 +459,7 @@ export const SecretBosses: React.FC = () => {
           <span className={`font-mono ${timeLeft <= 3 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
             Tiempo: {timeLeft}s
           </span>
-          <span className="font-mono text-green-400">Tu HP: {playerHealth}%</span>
+          <span className="font-mono text-green-400">Tu HP: {playerHealth}%{specterBarrierCharges > 0 ? ` | Barreras: ${specterBarrierCharges}` : ''}</span>
         </div>
 
         <Card className="glass-panel border-red-500/50 clip-card p-8 relative overflow-hidden">
@@ -401,16 +500,44 @@ export const SecretBosses: React.FC = () => {
     const won = bossHealth <= 0;
 
     return (
-      <div className="max-w-md mx-auto mt-20 text-center space-y-8 relative z-10">
+      <div className="max-w-xl mx-auto mt-20 text-center space-y-8 relative z-10">
         <Skull className={`w-24 h-24 mx-auto ${won ? 'text-yellow-400' : 'text-red-500'}`} />
         <h2 className="text-4xl font-display font-bold text-white uppercase tracking-widest">
           {won ? 'Primordial Derrotado' : 'Aniquilacion'}
         </h2>
 
         {won && lastLoot && (
-          <div className={`p-6 border clip-diagonal bg-background/50 ${RARITY_COLORS[lastLoot.rarity]}`}>
-            <h3 className="font-bold text-lg mb-2">{lastLoot.name}</h3>
-            <p className="text-sm font-mono opacity-80">{lastLoot.rarity} - {lastLoot.type}</p>
+          <div className="glass-panel border-red-500/20 clip-card p-6 text-left space-y-4">
+            <div className={`p-4 border clip-diagonal bg-background/50 ${RARITY_COLORS[lastLoot.rarity]}`}>
+              <h3 className="font-bold text-lg mb-2">{lastLoot.name}</h3>
+              <p className="text-sm font-mono opacity-80">{lastLoot.rarity} - {lastLoot.type}</p>
+            </div>
+            {bonusLoot && (
+              <div className={`p-4 border clip-diagonal bg-background/50 ${RARITY_COLORS[bonusLoot.rarity]}`}>
+                <h3 className="font-bold text-lg mb-2">{bonusLoot.name}</h3>
+                <p className="text-sm font-mono opacity-80">{bonusLoot.rarity} - {bonusLoot.type}</p>
+              </div>
+            )}
+            <div className="space-y-2 text-sm font-mono">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Obolos ganados</span>
+                <span className="text-yellow-400">{rewardObolos}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Fragmentos ganados</span>
+                <span className="text-cyan-400">{rewardMemory}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Gema obtenida</span>
+                <span className="text-purple-300">{rewardGemName}</span>
+              </div>
+            </div>
+            {activeSetEffect && (
+              <div className="pt-2 border-t border-yellow-500/10">
+                <div className="text-xs uppercase tracking-widest text-yellow-400">{activeSetBonus}</div>
+                <div className="text-sm text-white">{activeSetEffect.title}</div>
+              </div>
+            )}
           </div>
         )}
 

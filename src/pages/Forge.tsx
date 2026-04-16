@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Flame, Coins, Sparkles, ArrowRight, Hammer, Gem as GemIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { audio } from '@/lib/audio';
@@ -16,6 +17,25 @@ export const Forge: React.FC = () => {
   const [selectedGem, setSelectedGem] = useState<Gem | null>(null);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [activeTab, setActiveTab] = useState<'upgrade' | 'socket'>('upgrade');
+  const [itemSearch, setItemSearch] = useState('');
+  const [gemSearch, setGemSearch] = useState('');
+
+  const filteredItems = (profile?.gearInventory || []).filter((item) => {
+    const normalized = itemSearch.trim().toLowerCase();
+    if (!normalized) return true;
+    return (
+      item.name.toLowerCase().includes(normalized) ||
+      item.type.toLowerCase().includes(normalized) ||
+      item.rarity.toLowerCase().includes(normalized) ||
+      item.set.toLowerCase().includes(normalized)
+    );
+  });
+
+  const filteredGems = (profile?.gems || []).filter((gem) => {
+    const normalized = gemSearch.trim().toLowerCase();
+    if (!normalized) return true;
+    return gem.name.toLowerCase().includes(normalized) || gem.type.toLowerCase().includes(normalized);
+  });
 
   const handleUpgrade = async () => {
     if (!user || !profile || !selectedItem) return;
@@ -296,8 +316,15 @@ export const Forge: React.FC = () => {
                   No tienes objetos para forjar.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {profile.gearInventory.map((item) => (
+                <div className="space-y-4">
+                  <Input
+                    value={itemSearch}
+                    onChange={(event) => setItemSearch(event.target.value)}
+                    placeholder="Buscar objeto por nombre, tipo, rareza o set"
+                    className="bg-background/40 border-accent/30"
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {filteredItems.map((item) => (
                     <div 
                       key={item.id} 
                       className={`p-4 border clip-diagonal cursor-pointer transition-all ${selectedItem?.id === item.id ? 'border-orange-500 bg-orange-500/10' : `border-accent/20 bg-background/60 hover:border-accent ${RARITY_COLORS[item.rarity].split(' ')[0]}`}`}
@@ -323,6 +350,7 @@ export const Forge: React.FC = () => {
                       )}
                     </div>
                   ))}
+                  </div>
                 </div>
               )
             ) : (
@@ -331,8 +359,15 @@ export const Forge: React.FC = () => {
                   No tienes gemas en tu inventario.
                 </div>
               ) : (
+                <div className="space-y-4">
+                  <Input
+                    value={gemSearch}
+                    onChange={(event) => setGemSearch(event.target.value)}
+                    placeholder="Buscar gema por nombre o tipo"
+                    className="bg-background/40 border-accent/30"
+                  />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {profile.gems.map((gem) => (
+                  {filteredGems.map((gem) => (
                     <div 
                       key={gem.id} 
                       className={`p-4 border clip-diagonal cursor-pointer transition-all ${selectedGem?.id === gem.id ? 'border-purple-500 bg-purple-500/10' : 'border-purple-500/30 bg-background/60 hover:border-purple-500'}`}
@@ -347,6 +382,7 @@ export const Forge: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                </div>
                 </div>
               )
             )}

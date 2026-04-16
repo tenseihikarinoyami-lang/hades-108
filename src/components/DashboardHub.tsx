@@ -10,9 +10,13 @@ import { Link } from 'react-router-dom';
 import { MessageSquare, Gamepad2, ShieldAlert, Zap, Flame, Skull, Crosshair, Trophy, Users, ChevronRight, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 import { getActiveFlashEvents, getNextFlashEvent } from '@/data/flashEvents';
 import { getCurrentCataclysm } from '@/lib/cataclysms';
+import { resolveSpecterForProfile } from '@/data/specters';
+import { calculateSetBonus, getSetBonusEffect } from '@/lib/rpg';
 
 export const DashboardHub: React.FC = () => {
   const { user, profile } = useAuth();
+  const activeSpecter = resolveSpecterForProfile(profile || undefined);
+  const activeSetEffect = getSetBonusEffect(calculateSetBonus(profile?.equippedGear || {}));
   const activeEvents = getActiveFlashEvents();
   const nextEvent = getNextFlashEvent();
   const cataclysm = getCurrentCataclysm();
@@ -138,6 +142,38 @@ export const DashboardHub: React.FC = () => {
           </motion.div>
         ))}
       </div>
+
+      {(activeSpecter || activeSetEffect) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {activeSpecter && (
+            <Card className="glass-panel border-cyan-500/20 clip-card">
+              <CardHeader className="border-b border-cyan-500/10 pb-3">
+                <CardTitle className="font-display text-base text-cyan-400 flex items-center gap-2">
+                  <Zap className="w-4 h-4" /> Habilidad del Espectro
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-2">
+                <div className="font-display text-lg text-white">{activeSpecter.ability.name}</div>
+                <div className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSetEffect && (
+            <Card className="glass-panel border-yellow-500/20 clip-card">
+              <CardHeader className="border-b border-yellow-500/10 pb-3">
+                <CardTitle className="font-display text-base text-yellow-400 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4" /> Bono de Set Activo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-2">
+                <div className="font-display text-lg text-white">{activeSetEffect.title}</div>
+                <div className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* MAIN GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

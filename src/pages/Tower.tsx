@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
@@ -9,11 +9,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Zap, Skull, Flame, Trophy, Sparkles, PackageOpen, Snowflake, Moon, Circle, ArrowUp } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
-import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier } from '@/lib/rpg';
+import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier, calculateSetBonus, getSetBonusEffect } from '@/lib/rpg';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getSpecterBonuses, resolveSpecterForProfile } from '@/data/specters';
 
 export const Tower: React.FC = () => {
   const { user, profile } = useAuth();
+  const activeSpecter = resolveSpecterForProfile(profile || undefined);
+  const specterBonuses = getSpecterBonuses(profile || undefined);
+  const activeSetEffect = getSetBonusEffect(calculateSetBonus(profile?.equippedGear || {}));
+  const combatBonuses = useMemo(() => ({
+    damageMultiplier: specterBonuses.damageMultiplier * (activeSetEffect?.bonuses.damageMultiplier || 1),
+    bonusHealth: specterBonuses.bonusHealth + (activeSetEffect?.bonuses.healthBonus || 0),
+    bonusTime: specterBonuses.bonusTime + (activeSetEffect?.bonuses.timeBonus || 0),
+    lootChanceBonus: specterBonuses.lootChanceBonus + (activeSetEffect?.bonuses.lootChanceBonus || 0),
+    dodgeChance: specterBonuses.dodgeChance,
+    startingShields: specterBonuses.startingShields + (activeSetEffect?.bonuses.barrierShields || 0),
+    obolosMultiplier: specterBonuses.obolosMultiplier * (activeSetEffect?.bonuses.obolosMultiplier || 1),
+  }), [specterBonuses, activeSetEffect]);
   
   const [gameState, setGameState] = useState<'intro' | 'playing' | 'result'>('intro');
   const [currentFloor, setCurrentFloor] = useState(1);
@@ -34,6 +47,7 @@ export const Tower: React.FC = () => {
   // Run Stats
   const [runLoot, setRunLoot] = useState<Equipment[]>([]);
   const [runStarFragments, setRunStarFragments] = useState(0);
+  const [specterBarrierCharges, setSpecterBarrierCharges] = useState(0);
 
   // Timer Effect
   useEffect(() => {
@@ -73,11 +87,13 @@ export const Tower: React.FC = () => {
     let initialTime = 15;
     if (profile?.equippedGear?.artifact?.stats?.time) initialTime += profile.equippedGear.artifact.stats.time;
     if (profile?.faction === 'Griffon') initialTime += 3;
+    initialTime += combatBonuses.bonusTime;
     setTimeLeft(initialTime);
     
     // Health carries over between floors, but we cap it at max
     let maxHealth = 100;
     if (profile?.equippedGear?.armor?.stats?.health) maxHealth += profile.equippedGear.armor.stats.health;
+    maxHealth += combatBonuses.bonusHealth;
     if (floor === 1) setPlayerHealth(maxHealth);
   };
 
@@ -86,6 +102,7 @@ export const Tower: React.FC = () => {
     setCurrentFloor(1);
     setRunLoot([]);
     setRunStarFragments(0);
+    setSpecterBarrierCharges(combatBonuses.startingShields);
     startFloor(1);
   };
 
@@ -100,11 +117,19 @@ export const Tower: React.FC = () => {
   };
 
   const handleTimeOut = () => {
+    if (specterBarrierCharges > 0) {
+      setSpecterBarrierCharges((current) => Math.max(0, current - 1));
+      audio.playSFX('shield');
+      toast.info(activeSpecter?.ability.name ? `La habilidad ${activeSpecter.ability.name} bloqueo el castigo.` : 'Barrera espectral activada.');
+      moveToNextQuestion(true);
+      return;
+    }
+
     audio.playSFX('damage');
     triggerDamage('player');
     const nextPlayerHealth = Math.max(0, playerHealth - 25);
     setPlayerHealth(nextPlayerHealth);
-    toast.error("¡TIEMPO AGOTADO! Daño crítico recibido.");
+    toast.error("Â¡TIEMPO AGOTADO! DaÃ±o crÃ­tico recibido.");
     moveToNextQuestion(false, nextPlayerHealth);
   };
 
@@ -119,7 +144,7 @@ export const Tower: React.FC = () => {
       audio.playSFX('success');
       
       const playerWeaponElement = profile?.equippedGear?.weapon?.element || 'Neutral';
-      const multiplier = getElementMultiplier(playerWeaponElement, enemyElement);
+      const multiplier = getElementMultiplier(playerWeaponElement, enemyElement) * combatBonuses.damageMultiplier;
       
       const baseDamage = 100 / totalQuestions;
       setEnemyHealth(h => Math.max(0, h - (baseDamage * multiplier)));
@@ -128,12 +153,12 @@ export const Tower: React.FC = () => {
       
       // Loot Drop Logic for Tower
       // Higher floors = better loot chance
-      const lootChance = isBossStage ? 1.0 : 0.2 + (currentFloor * 0.02);
+      const lootChance = (isBossStage ? 1.0 : 0.2 + (currentFloor * 0.02)) + combatBonuses.lootChanceBonus;
       if (Math.random() < lootChance) {
         const droppedLoot = rollLoot(isBossStage);
         if (droppedLoot) {
           setRunLoot(prev => [...prev, droppedLoot]);
-          toast(`¡Botín Obtenido! ${droppedLoot.name}`, {
+          toast(`Â¡BotÃ­n Obtenido! ${droppedLoot.name}`, {
             icon: <PackageOpen className={`w-5 h-5 ${RARITY_COLORS[droppedLoot.rarity].split(' ')[0]}`} />,
             style: { background: 'rgba(0,0,0,0.8)', border: `1px solid currentColor`, color: '#fff' }
           });
@@ -151,21 +176,38 @@ export const Tower: React.FC = () => {
         moveToNextQuestion(true);
       }, 2500);
     } else {
+      if (specterBarrierCharges > 0) {
+        setSpecterBarrierCharges((current) => Math.max(0, current - 1));
+        audio.playSFX('shield');
+        toast.info(activeSpecter?.ability.name ? `La habilidad ${activeSpecter.ability.name} bloqueo el impacto.` : 'Barrera espectral activada.');
+        moveToNextQuestion(true);
+        return;
+      }
+
       let damage = isBossStage ? 40 + (currentFloor * 2) : 20 + currentFloor;
       
       const playerArmorElement = profile?.equippedGear?.armor?.element || 'Neutral';
       const defenseMultiplier = getElementMultiplier(enemyElement, playerArmorElement);
       
       damage = Math.floor(damage * defenseMultiplier);
+
+      if (Math.random() < combatBonuses.dodgeChance) {
+        damage = 0;
+        toast.success(activeSpecter?.ability.name ? `${activeSpecter.ability.name}: evasion perfecta.` : 'Evasion exitosa.');
+      }
       
-      audio.playSFX('damage');
+      audio.playSFX(damage === 0 ? 'success' : 'damage');
       const nextPlayerHealth = Math.max(0, playerHealth - damage);
       setPlayerHealth(nextPlayerHealth);
-      triggerDamage('player');
+      if (damage > 0) triggerDamage('player');
+      if (damage === 0) {
+        moveToNextQuestion(false, nextPlayerHealth);
+        return;
+      }
       
-      if (defenseMultiplier > 1) toast.error("¡GOLPE CRÍTICO! (Súper Efectivo)");
-      else if (defenseMultiplier < 1) toast.error("Tu armadura resistió parte del impacto.");
-      else toast.error("¡EVASIÓN FALLIDA! Daño recibido.");
+      if (defenseMultiplier > 1) toast.error("Â¡GOLPE CRÃTICO! (SÃºper Efectivo)");
+      else if (defenseMultiplier < 1) toast.error("Tu armadura resistiÃ³ parte del impacto.");
+      else toast.error("Â¡EVASIÃ“N FALLIDA! DaÃ±o recibido.");
       
       moveToNextQuestion(false, nextPlayerHealth);
     }
@@ -188,7 +230,7 @@ export const Tower: React.FC = () => {
       
       if (isNextBoss) {
         audio.playSFX('error');
-        toast.error("¡JEFE DEL PISO ACERCÁNDOSE!", {
+        toast.error("Â¡JEFE DEL PISO ACERCÃNDOSE!", {
            style: { background: 'rgba(255, 0, 0, 0.2)', border: '1px solid red', color: '#fff' }
         });
       }
@@ -199,11 +241,12 @@ export const Tower: React.FC = () => {
       let nextTime = isNextBoss ? 10 : 15;
       if (profile?.equippedGear?.artifact?.stats?.time) nextTime += profile.equippedGear.artifact.stats.time;
       if (profile?.faction === 'Griffon') nextTime += 3;
+      nextTime += combatBonuses.bonusTime;
       setTimeLeft(nextTime);
       setRevealedImage(false);
     } else {
       // Floor cleared!
-      toast.success(`¡Piso ${currentFloor} superado!`);
+      toast.success(`Â¡Piso ${currentFloor} superado!`);
       setCurrentFloor(prev => prev + 1);
       startFloor(currentFloor + 1);
     }
@@ -257,13 +300,28 @@ export const Tower: React.FC = () => {
         <Card className="glass-panel border-purple-500/30 clip-card bg-background/60 p-8">
           <div className="space-y-6">
             <p className="text-lg text-slate-300">
-              Enfréntate a oleadas interminables de enemigos generados por el Oráculo. 
-              Cada piso es más difícil que el anterior.
+              EnfrÃ©ntate a oleadas interminables de enemigos generados por el OrÃ¡culo. 
+              Cada piso es mÃ¡s difÃ­cil que el anterior.
             </p>
+            {activeSpecter && (
+              <div className="bg-background/50 border border-cyan-500/20 p-4 clip-diagonal max-w-2xl mx-auto text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Habilidad del Espectro</p>
+                <p className="font-display text-lg text-white">{activeSpecter.ability.name}</p>
+                <p className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</p>
+              </div>
+            )}
+            {activeSetEffect && (
+              <div className="bg-background/50 border border-yellow-500/20 p-4 clip-diagonal max-w-2xl mx-auto text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-yellow-400">Bono de Set Activo</p>
+                <p className="font-display text-lg text-white">{activeSetEffect.title}</p>
+                <p className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-mono text-muted-foreground">
               <div className="p-4 border border-purple-500/20 clip-diagonal">
                 <Skull className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-                Si mueres, la run termina, pero conservas el botín.
+                Si mueres, la run termina, pero conservas el botÃ­n.
               </div>
               <div className="p-4 border border-purple-500/20 clip-diagonal">
                 <Sparkles className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
@@ -271,7 +329,7 @@ export const Tower: React.FC = () => {
               </div>
               <div className="p-4 border border-purple-500/20 clip-diagonal">
                 <ArrowUp className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                Récord actual: Piso {profile?.highestTowerFloor || 0}
+                RÃ©cord actual: Piso {profile?.highestTowerFloor || 0}
               </div>
             </div>
             <Button 
@@ -318,7 +376,10 @@ export const Tower: React.FC = () => {
           <div className="flex-1 space-y-2 pl-12">
             <div className="flex justify-between text-xs font-mono font-bold tracking-widest text-purple-400">
               <span>{profile?.specterName?.toUpperCase() || 'ESPECTRO'}</span>
-              <span className={playerHealth <= 25 ? 'text-primary animate-pulse' : ''}>{Math.max(0, playerHealth)} HP</span>
+              <span className="flex items-center gap-2">
+                {specterBarrierCharges > 0 && <Sparkles className="w-3 h-3 text-cyan-400" title={activeSpecter?.ability.name || 'Barrera espectral'} />}
+                <span className={playerHealth <= 25 ? 'text-primary animate-pulse' : ''}>{Math.max(0, playerHealth)} HP</span>
+              </span>
             </div>
             <div className="h-4 bg-background border border-purple-500/50 rounded-sm overflow-hidden clip-diagonal relative">
               {isDamaged && <div className="absolute inset-0 bg-primary/50 z-10" />}
@@ -408,7 +469,7 @@ export const Tower: React.FC = () => {
             <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse" />
             <Skull className="w-full h-full text-primary neon-text-primary relative z-10" />
           </div>
-          <h2 className="text-5xl font-display font-bold text-primary uppercase tracking-widest">Caído</h2>
+          <h2 className="text-5xl font-display font-bold text-primary uppercase tracking-widest">CaÃ­do</h2>
           <p className="text-muted-foreground font-mono tracking-widest text-sm">TU ASCENSO HA TERMINADO.</p>
           
           <div className="p-6 glass-panel border-purple-500/30 clip-card relative overflow-hidden text-left space-y-4">
@@ -425,7 +486,7 @@ export const Tower: React.FC = () => {
             </div>
 
             <div>
-              <span className="text-sm text-yellow-400 uppercase tracking-widest font-mono block mb-2">Botín Recuperado</span>
+              <span className="text-sm text-yellow-400 uppercase tracking-widest font-mono block mb-2">BotÃ­n Recuperado</span>
               {runLoot.length === 0 ? (
                 <span className="text-xs text-muted-foreground font-mono">Ninguno</span>
               ) : (

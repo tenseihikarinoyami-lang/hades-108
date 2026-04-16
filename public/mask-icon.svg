@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hades 108 Mask Icon">
+  <rect width="512" height="512" rx="84" fill="#05010a" />
+  <polygon points="256,48 416,136 416,376 256,464 96,376 96,136" fill="#6d28d9" stroke="#00f0ff" stroke-width="24" />
+  <text x="256" y="312" text-anchor="middle" font-family="Georgia, serif" font-size="210" fill="#e6fbff">H</text>
+</svg>

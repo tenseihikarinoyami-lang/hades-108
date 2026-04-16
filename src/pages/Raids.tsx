@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, increment } from 'firebase/firestore';
@@ -8,8 +8,10 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Shield, Zap, Skull, Flame, Trophy, Swords, Target } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { getCombatContext } from '@/lib/combat';
+import { getDailyRaidBoss } from '@/data/raidBosses';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
-import { getElementMultiplier, Element } from '@/lib/rpg';
+import { calculateSetBonus, Element, getElementMultiplier, getSetBonusEffect } from '@/lib/rpg';
 
 interface RaidBoss {
   id: string;
@@ -28,6 +30,10 @@ interface RaidBoss {
 
 export const Raids: React.FC = () => {
   const { user, profile } = useAuth();
+  const { activeSpecter, activeSetBonus, activeSetEffect, bonuses: combatBonuses } = useMemo(
+    () => getCombatContext(profile),
+    [profile]
+  );
   const [boss, setBoss] = useState<RaidBoss | null>(null);
   const [gameState, setGameState] = useState<'lobby' | 'playing'>('lobby');
   const [questions, setQuestions] = useState<GeneratedTrivia[]>([]);
@@ -39,17 +45,41 @@ export const Raids: React.FC = () => {
     const bossRef = doc(db, 'game_state', 'current_raid');
     
     const unsubscribe = onSnapshot(bossRef, (docSnap) => {
+      const dailyBoss = getDailyRaidBoss();
       if (docSnap.exists()) {
-        setBoss(docSnap.data() as RaidBoss);
+        const liveBoss = docSnap.data() as RaidBoss;
+        if (liveBoss.id !== dailyBoss.id) {
+          const rotatedBoss: RaidBoss = {
+            id: dailyBoss.id,
+            name: dailyBoss.name,
+            maxHealth: dailyBoss.maxHealth,
+            currentHealth: dailyBoss.maxHealth,
+            element: dailyBoss.element,
+            imageUrl: dailyBoss.imageUrl,
+            active: true,
+            factionDamage: { Wyvern: 0, Griffon: 0, Garuda: 0 }
+          };
+          void setDoc(bossRef, rotatedBoss);
+          setBoss(rotatedBoss);
+          return;
+        }
+
+        setBoss({
+          ...liveBoss,
+          name: dailyBoss.name,
+          element: dailyBoss.element,
+          imageUrl: dailyBoss.imageUrl,
+          maxHealth: dailyBoss.maxHealth,
+        });
       } else {
-        // Initialize a dummy boss if none exists
+        // Initialize the boss of the day if none exists
         const initialBoss: RaidBoss = {
-          id: 'raid_athena_1',
-          name: 'Athena, Diosa de la Guerra',
-          maxHealth: 100000,
-          currentHealth: 100000,
-          element: 'Neutral',
-          imageUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=800&q=80',
+          id: dailyBoss.id,
+          name: dailyBoss.name,
+          maxHealth: dailyBoss.maxHealth,
+          currentHealth: dailyBoss.maxHealth,
+          element: dailyBoss.element,
+          imageUrl: dailyBoss.imageUrl,
           active: true,
           factionDamage: { Wyvern: 0, Griffon: 0, Garuda: 0 }
         };
@@ -67,7 +97,7 @@ export const Raids: React.FC = () => {
     }
     
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Dios', 3); // 3 hard questions per raid attempt
+    const generated = await generateInfiniteTrivia(boss ? `boss:${boss.id}:${boss.name}` : 'boss:daily-raid', 3, 'Dios');
     if (generated.length > 0) {
       setQuestions(generated);
       setCurrentQ(0);
@@ -90,12 +120,13 @@ export const Raids: React.FC = () => {
       let damage = 500; // Base raid damage
       const playerWeaponElement = profile?.equippedGear?.weapon?.element || 'Neutral';
       const multiplier = getElementMultiplier(playerWeaponElement, boss?.element || 'Neutral');
+      const finalDamageMultiplier = combatBonuses.damageMultiplier;
       
       if (profile?.equippedGear?.weapon?.stats?.damage) {
         damage += profile.equippedGear.weapon.stats.damage * 10;
       }
       
-      damage = Math.floor(damage * multiplier);
+      damage = Math.floor(damage * multiplier * finalDamageMultiplier);
       setDamageDealt(prev => prev + damage);
       
       toast.success(`¡Impacto! ${damage} de daño al Jefe.`);
@@ -124,7 +155,7 @@ export const Raids: React.FC = () => {
         toast.success(`Incursión terminada. Daño total: ${damageDealt}`);
         
         // Reward some obolos based on damage
-        const obolosEarned = Math.floor(damageDealt / 100);
+        const obolosEarned = Math.floor((damageDealt / 100) * combatBonuses.obolosMultiplier);
         if (obolosEarned > 0) {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, {
@@ -180,6 +211,22 @@ export const Raids: React.FC = () => {
                 </div>
               </div>
 
+              {activeSpecter && (
+                <div className="bg-background/50 border border-cyan-500/20 p-4 clip-diagonal text-left space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Habilidad del Espectro</p>
+                  <p className="font-display text-lg text-white">{activeSpecter.ability.name}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{activeSpecter.ability.description}</p>
+                </div>
+              )}
+
+              {activeSetEffect && (
+                <div className="bg-background/50 border border-yellow-500/20 p-4 clip-diagonal text-left space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-yellow-400">Bono de Set Activo</p>
+                  <p className="font-display text-lg text-white">{activeSetEffect.title}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-4">
                 {(['Wyvern', 'Griffon', 'Garuda'] as const).map(faction => (
                   <div key={faction} className="p-4 border border-accent/20 clip-diagonal text-center bg-background/50">
@@ -197,6 +244,9 @@ export const Raids: React.FC = () => {
               >
                 {isGenerating ? 'Preparando Asalto...' : 'Atacar al Jefe'}
               </Button>
+              <p className="text-xs font-mono text-muted-foreground text-center">
+                El jefe rota diariamente y usa preguntas exclusivas de anime, manga, manhwa, manhua y videojuegos.
+              </p>
             </CardContent>
           </Card>
         ) : (

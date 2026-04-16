@@ -16,6 +16,19 @@ export interface Gem {
   color: string;
 }
 
+export interface SetBonusEffect {
+  title: string;
+  description: string;
+  bonuses: {
+    damageMultiplier: number;
+    healthBonus: number;
+    timeBonus: number;
+    lootChanceBonus: number;
+    obolosMultiplier: number;
+    barrierShields: number;
+  };
+}
+
 export const CLASS_BONUSES: Record<SpecterClass, { damage: number, health: number, time: number, name: string, desc: string }> = {
   'Violencia': { damage: 1.5, health: 0.8, time: 1.0, name: 'Estrella de la Violencia', desc: '+50% Daño de Arma, -20% Vida de Armadura' },
   'Defensa': { damage: 0.8, health: 1.5, time: 1.0, name: 'Estrella de la Defensa', desc: '+50% Vida de Armadura, -20% Daño de Arma' },
@@ -183,6 +196,134 @@ export const calculateSetBonus = (equipped: Record<string, Equipment | null | un
     return set1;
   }
   return null;
+};
+
+export const SET_BONUS_EFFECTS: Record<Exclude<SetType, 'Ninguno'>, SetBonusEffect> = {
+  Wyvern: {
+    title: 'Furia del Tribunal',
+    description: '+15% dano y +5% probabilidad de botin.',
+    bonuses: { damageMultiplier: 1.15, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0.05, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Griffon: {
+    title: 'Hilos del Veredicto',
+    description: '+5 segundos de tiempo y +10% obolos.',
+    bonuses: { damageMultiplier: 1, healthBonus: 0, timeBonus: 5, lootChanceBonus: 0, obolosMultiplier: 1.1, barrierShields: 0 }
+  },
+  Garuda: {
+    title: 'Aleteo Supremo',
+    description: '+25 HP y 1 barrera espectral adicional.',
+    bonuses: { damageMultiplier: 1, healthBonus: 25, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 1 }
+  },
+  Hades: {
+    title: 'Mandato del Inframundo',
+    description: '+10% dano, +20 HP, +2s y +10% obolos.',
+    bonuses: { damageMultiplier: 1.1, healthBonus: 20, timeBonus: 2, lootChanceBonus: 0, obolosMultiplier: 1.1, barrierShields: 0 }
+  },
+  Chronos: {
+    title: 'Reloj Primordial',
+    description: '+8 segundos de tiempo y +10% dano.',
+    bonuses: { damageMultiplier: 1.1, healthBonus: 0, timeBonus: 8, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Caos: {
+    title: 'Entropia Absoluta',
+    description: '+20% dano y +5% botin.',
+    bonuses: { damageMultiplier: 1.2, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0.05, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Nyx: {
+    title: 'Velo de la Noche',
+    description: '+15 HP y 1 barrera.',
+    bonuses: { damageMultiplier: 1, healthBonus: 15, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 1 }
+  },
+  Erebus: {
+    title: 'Profundidad Sombria',
+    description: '+12% dano y +12% obolos.',
+    bonuses: { damageMultiplier: 1.12, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1.12, barrierShields: 0 }
+  },
+  Tartarus: {
+    title: 'Abismo Inamovible',
+    description: '+35 HP.',
+    bonuses: { damageMultiplier: 1, healthBonus: 35, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Gaia: {
+    title: 'Corazon de la Tierra',
+    description: '+30 HP y +5% botin.',
+    bonuses: { damageMultiplier: 1, healthBonus: 30, timeBonus: 0, lootChanceBonus: 0.05, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Uranus: {
+    title: 'Boveda Celeste',
+    description: '+6 segundos de tiempo.',
+    bonuses: { damageMultiplier: 1, healthBonus: 0, timeBonus: 6, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Pontus: {
+    title: 'Marea Originaria',
+    description: '+4 segundos y +10% obolos.',
+    bonuses: { damageMultiplier: 1, healthBonus: 0, timeBonus: 4, lootChanceBonus: 0, obolosMultiplier: 1.1, barrierShields: 0 }
+  },
+  Ourea: {
+    title: 'Cumbre Antigua',
+    description: '+25 HP y +8% dano.',
+    bonuses: { damageMultiplier: 1.08, healthBonus: 25, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Hemera: {
+    title: 'Alba Eterna',
+    description: '+5 segundos y +5% botin.',
+    bonuses: { damageMultiplier: 1, healthBonus: 0, timeBonus: 5, lootChanceBonus: 0.05, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Aether: {
+    title: 'Aliento del Eter',
+    description: '+12% dano y +4 segundos.',
+    bonuses: { damageMultiplier: 1.12, healthBonus: 0, timeBonus: 4, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Eros: {
+    title: 'Impulso Primigenio',
+    description: '+15% dano.',
+    bonuses: { damageMultiplier: 1.15, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Ananke: {
+    title: 'Sello del Destino',
+    description: '+1 barrera y +10% obolos.',
+    bonuses: { damageMultiplier: 1, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1.1, barrierShields: 1 }
+  },
+  Phanes: {
+    title: 'Primera Llama',
+    description: '+10% dano y +3 segundos.',
+    bonuses: { damageMultiplier: 1.1, healthBonus: 0, timeBonus: 3, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Thalassa: {
+    title: 'Abismo de Marea',
+    description: '+20 HP y +3 segundos.',
+    bonuses: { damageMultiplier: 1, healthBonus: 20, timeBonus: 3, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Moros: {
+    title: 'Augurio Final',
+    description: '+18% dano.',
+    bonuses: { damageMultiplier: 1.18, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Thanatos: {
+    title: 'Marca de la Muerte',
+    description: '+15% dano y +15% obolos.',
+    bonuses: { damageMultiplier: 1.15, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1.15, barrierShields: 0 }
+  },
+  Hypnos: {
+    title: 'Sueno Invencible',
+    description: '+1 barrera y +4 segundos.',
+    bonuses: { damageMultiplier: 1, healthBonus: 0, timeBonus: 4, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 1 }
+  },
+  Nemesis: {
+    title: 'Retribucion',
+    description: '+10% dano y +10 HP.',
+    bonuses: { damageMultiplier: 1.1, healthBonus: 10, timeBonus: 0, lootChanceBonus: 0, obolosMultiplier: 1, barrierShields: 0 }
+  },
+  Eris: {
+    title: 'Discordia',
+    description: '+8% dano y +5% botin.',
+    bonuses: { damageMultiplier: 1.08, healthBonus: 0, timeBonus: 0, lootChanceBonus: 0.05, obolosMultiplier: 1, barrierShields: 0 }
+  }
+};
+
+export const getSetBonusEffect = (set: SetType | null | undefined): SetBonusEffect | null => {
+  if (!set || set === 'Ninguno') return null;
+  return SET_BONUS_EFFECTS[set];
 };
 
 export const UPGRADE_COSTS: Record<Rarity, { obolos: number, starFragments: number, next: Rarity | null }> = {
