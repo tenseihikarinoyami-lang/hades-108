@@ -1,14 +1,22 @@
-import { getSpecterBonuses, resolveSpecterForProfile, type SpecterBonuses, type SpecterDefinition } from '@/data/specters';
-import { calculateSetBonus, getSetBonusEffect, type Equipment, type SetBonusEffect, type SetType } from '@/lib/rpg';
+import { getSpecterBonuses, getSpecterCollectionProgress, getSpecterAwakeningLevel, resolveSpecterForProfile, type SpecterBonuses, type SpecterDefinition } from '@/data/specters';
+import { calculateSetBonus, getSetBonusEffect, type Element, type Equipment, type SetBonusEffect, type SetType } from '@/lib/rpg';
 
 type CombatProfile = {
   specterId?: string;
   specterName?: string;
+  discoveredSpecters?: string[];
+  specterAwakenings?: Record<string, number>;
   equippedGear?: {
     weapon?: Equipment | null;
     armor?: Equipment | null;
     artifact?: Equipment | null;
   };
+};
+
+type CombatContextInput = {
+  mode?: string;
+  enemyElement?: Element | null;
+  enemyTags?: string[];
 };
 
 export interface CombatBonuses extends SpecterBonuses {
@@ -29,18 +37,33 @@ export const getCombatContext = (profile?: CombatProfile | null): {
   activeSpecter: SpecterDefinition | null;
   activeSetBonus: SetType | null;
   activeSetEffect: SetBonusEffect | null;
+  awakeningLevel: number;
+  collectionProgress: ReturnType<typeof getSpecterCollectionProgress>;
+  bonuses: CombatBonuses;
+} => getCombatContextFor(profile);
+
+export const getCombatContextFor = (profile?: CombatProfile | null, context?: CombatContextInput): {
+  activeSpecter: SpecterDefinition | null;
+  activeSetBonus: SetType | null;
+  activeSetEffect: SetBonusEffect | null;
+  awakeningLevel: number;
+  collectionProgress: ReturnType<typeof getSpecterCollectionProgress>;
   bonuses: CombatBonuses;
 } => {
   const activeSpecter = resolveSpecterForProfile(profile || undefined);
-  const specterBonuses = getSpecterBonuses(profile || undefined);
+  const specterBonuses = getSpecterBonuses(profile || undefined, context);
   const activeSetBonus = calculateSetBonus(profile?.equippedGear || {});
   const activeSetEffect = getSetBonusEffect(activeSetBonus);
   const setBonuses = activeSetEffect?.bonuses || DEFAULT_SET_MULTIPLIERS;
+  const awakeningLevel = getSpecterAwakeningLevel(profile || undefined, activeSpecter);
+  const collectionProgress = getSpecterCollectionProgress(profile || undefined);
 
   return {
     activeSpecter,
     activeSetBonus,
     activeSetEffect,
+    awakeningLevel,
+    collectionProgress,
     bonuses: {
       damageMultiplier: specterBonuses.damageMultiplier * setBonuses.damageMultiplier,
       bonusHealth: specterBonuses.bonusHealth + setBonuses.healthBonus,

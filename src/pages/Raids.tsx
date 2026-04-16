@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Shield, Zap, Skull, Flame, Trophy, Swords, Target } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { RAID_BESTIARY } from '@/data/bestiary';
+import { getWeeklyEventForMode } from '@/data/weeklyEvents';
 import { getCombatContext } from '@/lib/combat';
 import { getDailyRaidBoss } from '@/data/raidBosses';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
@@ -40,6 +42,7 @@ export const Raids: React.FC = () => {
   const [currentQ, setCurrentQ] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [damageDealt, setDamageDealt] = useState(0);
+  const weeklyEvent = useMemo(() => getWeeklyEventForMode('Raids'), []);
 
   useEffect(() => {
     const bossRef = doc(db, 'game_state', 'current_raid');
@@ -120,7 +123,7 @@ export const Raids: React.FC = () => {
       let damage = 500; // Base raid damage
       const playerWeaponElement = profile?.equippedGear?.weapon?.element || 'Neutral';
       const multiplier = getElementMultiplier(playerWeaponElement, boss?.element || 'Neutral');
-      const finalDamageMultiplier = combatBonuses.damageMultiplier;
+      const finalDamageMultiplier = combatBonuses.damageMultiplier * (weeklyEvent?.effect.damageMultiplier || 1);
       
       if (profile?.equippedGear?.weapon?.stats?.damage) {
         damage += profile.equippedGear.weapon.stats.damage * 10;
@@ -172,6 +175,7 @@ export const Raids: React.FC = () => {
   };
 
   if (gameState === 'lobby') {
+    const bestiaryEntry = RAID_BESTIARY.find((entry) => entry.id === boss?.id);
     return (
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         <div className="text-center space-y-4 mb-12">
@@ -236,6 +240,23 @@ export const Raids: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {bestiaryEntry && (
+                <div className="border border-red-500/20 bg-background/40 p-4 clip-diagonal text-left space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-red-300">Dossier del Santuario</p>
+                  <p className="text-sm text-white/90"><span className="text-cyan-300">Debilidad:</span> {bestiaryEntry.weakness}</p>
+                  <p className="text-sm text-white/80"><span className="text-yellow-300">Patron:</span> {bestiaryEntry.behavior}</p>
+                  <p className="text-sm text-white/80"><span className="text-emerald-300">Recompensa:</span> {bestiaryEntry.rewardHint}</p>
+                </div>
+              )}
+
+              {weeklyEvent && (
+                <div className="border border-fuchsia-500/20 bg-background/40 p-4 clip-diagonal text-left space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-fuchsia-300">Evento semanal</p>
+                  <p className="font-display text-white">{weeklyEvent.name}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{weeklyEvent.bonuses.join(' | ')}</p>
+                </div>
+              )}
 
               <Button 
                 onClick={handleStartRaid}

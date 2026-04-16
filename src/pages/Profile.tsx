@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import {
   AlertCircle,
+  ArrowUpCircle,
   Coins,
   Copy,
   Cpu,
@@ -28,7 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { audio } from '@/lib/audio';
 import { processReferralCode } from '@/lib/referrals';
-import { getSpecterById, getSpecterByName, SPECTERS_BY_FACTION } from '@/data/specters';
+import { getSpecterById, getSpecterByName, getSpecterCollectionProgress, SPECTERS_BY_FACTION } from '@/data/specters';
 
 const FACTIONS = [
   { id: 'Wyvern', name: 'Ejercito de Radamanthys (Wyvern)', color: 'text-purple-500', border: 'border-purple-500' },
@@ -112,6 +113,10 @@ export const Profile: React.FC = () => {
     () => getSpecterById(specterId) || getSpecterByName(specterName),
     [specterId, specterName]
   );
+  const collectionProgress = useMemo(() => getSpecterCollectionProgress(profile || undefined), [profile]);
+  const awakeningLevel = selectedSpecter ? profile?.specterAwakenings?.[selectedSpecter.id] || 0 : 0;
+  const nextAwakening = selectedSpecter?.awakenings.find((stage) => stage.level === Math.min(awakeningLevel + 1, 3));
+  const awakeningCost = (awakeningLevel + 1) * 3;
 
   const filteredSpecters = useMemo(() => {
     const normalizedSearch = specterSearch.trim().toLowerCase();
@@ -197,6 +202,7 @@ export const Profile: React.FC = () => {
         faction: faction || selectedSpecter.faction,
         specterAbilityName: selectedSpecter.ability.name,
         specterAbilityDescription: selectedSpecter.ability.description,
+        discoveredSpecters: Array.from(new Set([...(profile?.discoveredSpecters || []), selectedSpecter.id])),
       });
 
       audio.playSFX('success');
@@ -209,6 +215,30 @@ export const Profile: React.FC = () => {
     }
   };
 
+  const handleAwakenSpecter = async () => {
+    if (!selectedSpecter || !profile) return;
+    if (awakeningLevel >= 3) {
+      toast.info('Ese espectro ya alcanzo su despertar maximo.');
+      return;
+    }
+    if ((profile.cosmosPoints || 0) < awakeningCost) {
+      toast.error(`Necesitas ${awakeningCost} puntos de cosmos para despertar a ${selectedSpecter.title}.`);
+      return;
+    }
+
+    const nextLevel = awakeningLevel + 1;
+    await updateProfile({
+      cosmosPoints: (profile.cosmosPoints || 0) - awakeningCost,
+      specterAwakenings: {
+        ...(profile.specterAwakenings || {}),
+        [selectedSpecter.id]: nextLevel,
+      },
+      discoveredSpecters: Array.from(new Set([...(profile.discoveredSpecters || []), selectedSpecter.id])),
+    });
+    audio.playSFX('success');
+    toast.success(`${selectedSpecter.title} alcanzo Despertar ${nextLevel}.`);
+  };
+
   if (!profile) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -219,6 +249,9 @@ export const Profile: React.FC = () => {
 
   const isNameTaken = !!selectedSpecter && takenSpecters.includes(selectedSpecter.name);
   const logoPreview = photoURL || selectedSpecter?.logo || '';
+  const currentFamilyProgress = selectedSpecter
+    ? collectionProgress.familyProgress.find((family) => family.family === selectedSpecter.family)
+    : null;
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 relative">
@@ -375,12 +408,13 @@ export const Profile: React.FC = () => {
               </div>
 
               {selectedSpecter && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-background/50 border border-accent/20 p-4 clip-diagonal space-y-2">
                     <p className="text-[10px] uppercase tracking-[0.3em] text-accent/70">Ficha del Sapuris</p>
                     <h3 className="font-display text-xl text-white tracking-wider">{selectedSpecter.name}</h3>
                     <p className="text-xs text-muted-foreground font-mono">{selectedSpecter.legion}</p>
                     <p className="text-xs text-muted-foreground">{selectedSpecter.factionLabel}</p>
+                    <p className="text-xs text-yellow-400 uppercase tracking-widest">{selectedSpecter.legionRank}</p>
                     <p className="text-sm text-white/90">Bestia tutelar: {selectedSpecter.beast}</p>
                   </div>
 
@@ -388,6 +422,86 @@ export const Profile: React.FC = () => {
                     <p className="text-[10px] uppercase tracking-[0.3em] text-primary/80">Habilidad especial</p>
                     <h3 className="font-display text-lg text-primary tracking-wide">{selectedSpecter.ability.name}</h3>
                     <p className="text-sm text-white/90">{selectedSpecter.ability.description}</p>
+                  </div>
+
+                  <div className="bg-background/50 border border-cyan-500/30 p-4 clip-diagonal space-y-2">
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-400">Afinidad y Familia</p>
+                    <h3 className="font-display text-lg text-white tracking-wide">{selectedSpecter.affinity.name}</h3>
+                    <p className="text-sm text-white/90">{selectedSpecter.affinity.description}</p>
+                    <p className="text-[11px] font-mono text-cyan-300">Familia: {selectedSpecter.family}</p>
+                    <p className="text-[11px] font-mono text-muted-foreground">
+                      Elementos favorecidos: {selectedSpecter.affinity.favoredElements.join(', ')}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {selectedSpecter && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-background/50 border border-purple-500/30 p-4 clip-diagonal space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.3em] text-purple-300">Despertar del Espectro</p>
+                        <h3 className="font-display text-lg text-white">Nivel {awakeningLevel}/3</h3>
+                      </div>
+                      <div className="text-right text-[11px] font-mono text-muted-foreground">
+                        Cosmos: <span className="text-purple-300">{profile.cosmosPoints || 0}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {selectedSpecter.awakenings.map((stage) => (
+                        <div
+                          key={stage.level}
+                          className={`p-3 border clip-diagonal ${stage.level <= awakeningLevel ? 'border-purple-400 bg-purple-500/10' : 'border-accent/20 bg-background/40'}`}
+                        >
+                          <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Nivel {stage.level}</div>
+                          <div className="text-sm font-display text-white mt-1">{stage.name}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-white/90">
+                      {nextAwakening ? nextAwakening.description : 'Despertar maximo alcanzado.'}
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={handleAwakenSpecter}
+                      disabled={awakeningLevel >= 3 || (profile.cosmosPoints || 0) < awakeningCost}
+                      className="clip-diagonal bg-purple-600 hover:bg-purple-500 text-white uppercase tracking-widest"
+                    >
+                      <ArrowUpCircle className="w-4 h-4 mr-2" />
+                      {awakeningLevel >= 3 ? 'Maximo Alcanzado' : `Despertar (${awakeningCost} cosmos)`}
+                    </Button>
+                  </div>
+
+                  <div className="bg-background/50 border border-emerald-500/30 p-4 clip-diagonal space-y-3">
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-emerald-300">Coleccion de los 108</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 border border-emerald-500/20 bg-background/40 clip-diagonal text-center">
+                        <div className="text-2xl font-display text-emerald-300">{collectionProgress.discoveredCount}</div>
+                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Descubiertos</div>
+                      </div>
+                      <div className="p-3 border border-yellow-500/20 bg-background/40 clip-diagonal text-center">
+                        <div className="text-2xl font-display text-yellow-300">{collectionProgress.completedFamilies.length}</div>
+                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Familias completas</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-mono">
+                        <span className="text-white">{currentFamilyProgress?.family || selectedSpecter.family}</span>
+                        <span className="text-emerald-300">
+                          {currentFamilyProgress?.discovered || 0}/{currentFamilyProgress?.total || 0}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-background border border-emerald-500/20 rounded-sm overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500/70"
+                          style={{ width: `${((currentFamilyProgress?.discovered || 0) / Math.max(currentFamilyProgress?.total || 1, 1)) * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] font-mono text-muted-foreground">
+                        Cada familia completa otorga bonus globales de dano, botin y obolos.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

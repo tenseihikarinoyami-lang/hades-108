@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LogOut, User, MessageSquare, Gamepad2, Home, Trophy, Flame, Volume2, VolumeX, Store as StoreIcon, Shield, Swords, Hammer, Castle, Skull, Star, FlaskConical, Map, EyeOff, Crown, ArrowUpCircle, Users, BookOpen, ChevronDown, Zap, Dog, Anchor, Activity, Menu, X } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { trackRouteView } from '@/lib/analytics';
 import { getCurrentCataclysm } from '@/lib/cataclysms';
 import { Onboarding } from '@/components/Onboarding';
 
@@ -25,6 +26,10 @@ export const Layout: React.FC = () => {
     document.addEventListener('click', handleInteraction);
     return () => document.removeEventListener('click', handleInteraction);
   }, []);
+
+  useEffect(() => {
+    trackRouteView(location.pathname, user?.uid);
+  }, [location.pathname, user?.uid]);
 
   const handleLogin = async () => {
     audio.playSFX('click');

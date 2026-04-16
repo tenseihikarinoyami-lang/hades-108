@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Link } from 'react-router-dom';
 import { MessageSquare, Gamepad2, ShieldAlert, Zap, Flame, Skull, Crosshair, Trophy, Users, ChevronRight, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 import { getActiveFlashEvents, getNextFlashEvent } from '@/data/flashEvents';
+import { getCurrentWeeklyEvent, getUpcomingWeeklyEvents } from '@/data/weeklyEvents';
 import { getCurrentCataclysm } from '@/lib/cataclysms';
 import { resolveSpecterForProfile } from '@/data/specters';
 import { calculateSetBonus, getSetBonusEffect } from '@/lib/rpg';
@@ -19,6 +20,8 @@ export const DashboardHub: React.FC = () => {
   const activeSetEffect = getSetBonusEffect(calculateSetBonus(profile?.equippedGear || {}));
   const activeEvents = getActiveFlashEvents();
   const nextEvent = getNextFlashEvent();
+  const weeklyEvent = getCurrentWeeklyEvent();
+  const upcomingWeeklyEvents = getUpcomingWeeklyEvents();
   const cataclysm = getCurrentCataclysm();
 
   const dailyMissions = profile?.dailyMissions || [];
@@ -65,6 +68,27 @@ export const DashboardHub: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           className="space-y-4"
         >
+          <Card className={`glass-panel border-accent/20 clip-card bg-gradient-to-r ${weeklyEvent.color}`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg text-white flex items-center gap-2">
+                <Clock className="w-5 h-5" /> Evento semanal: {weeklyEvent.name}
+              </CardTitle>
+              <CardDescription className="text-white/80">{weeklyEvent.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {weeklyEvent.bonuses.map((bonus) => (
+                  <div key={bonus} className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-xs text-white font-mono">
+                    <Zap className="w-3 h-3" /> {bonus}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] uppercase tracking-widest text-white/70">
+                Modos afectados: {weeklyEvent.affectedModes.join(' · ')}
+              </div>
+            </CardContent>
+          </Card>
+
           {activeEvents.map(event => (
             <Card key={event.id} className={`glass-panel border-accent/30 clip-card bg-gradient-to-r ${event.color}`}>
               <CardHeader className="pb-2">
@@ -116,6 +140,23 @@ export const DashboardHub: React.FC = () => {
           )}
         </motion.div>
       )}
+
+      <Card className="glass-panel border-accent/20 clip-card">
+        <CardHeader className="border-b border-accent/10 pb-3">
+          <CardTitle className="font-display text-base text-accent flex items-center gap-2">
+            <Clock className="w-4 h-4" /> Rotacion Semanal
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          {upcomingWeeklyEvents.map((event) => (
+            <div key={event.id} className="border border-accent/10 bg-background/40 p-3 clip-diagonal space-y-2">
+              <div className="font-display text-white">{event.name}</div>
+              <div className="text-[10px] uppercase tracking-widest text-accent">{event.subtitle}</div>
+              <div className="text-xs text-muted-foreground">{event.affectedModes.join(', ')}</div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* QUICK ACTIONS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

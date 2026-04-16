@@ -3,10 +3,12 @@ import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Users, Shield, Swords, Trophy, Plus } from 'lucide-react';
+import { Users, Shield, Swords, Trophy, Plus, Map, CalendarRange } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getWeeklyGuildMissions } from '@/lib/guildMissions';
+import { getCurrentWeeklyEvent } from '@/data/weeklyEvents';
 
 interface Guild {
   id: string;
@@ -34,6 +36,8 @@ export const Guilds: React.FC = () => {
   const [newGuildName, setNewGuildName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [nodes, setNodes] = useState<ResourceNode[]>([]);
+  const weeklyEvent = getCurrentWeeklyEvent();
+  const guildMissions = myGuild ? getWeeklyGuildMissions(myGuild, nodes) : [];
 
   useEffect(() => {
     fetchGuilds();
@@ -244,6 +248,19 @@ export const Guilds: React.FC = () => {
         <p className="text-muted-foreground font-sans tracking-[0.2em] uppercase text-sm">Sub-facciones de {profile.faction}</p>
       </div>
 
+      <Card className={`glass-panel border-accent/20 clip-card bg-gradient-to-r ${weeklyEvent.color}`}>
+        <CardHeader className="border-b border-accent/10">
+          <CardTitle className="font-display text-lg text-white flex items-center gap-2">
+            <CalendarRange className="w-5 h-5" /> Evento semanal activo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-2">
+          <p className="font-display text-white">{weeklyEvent.name}</p>
+          <p className="text-sm text-white/80">{weeklyEvent.description}</p>
+          <p className="text-xs font-mono text-accent">Bonos: {weeklyEvent.bonuses.join(' | ')}</p>
+        </CardContent>
+      </Card>
+
       {myGuild ? (
         <Card className="glass-panel border-emerald-500/30 clip-card relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/20 to-transparent pointer-events-none" />
@@ -299,6 +316,29 @@ export const Guilds: React.FC = () => {
                 <Plus className="w-4 h-4 mr-2" /> Fundar (5000 Óbolos)
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {myGuild && (
+        <Card className="glass-panel border-cyan-500/20 clip-card">
+          <CardHeader className="border-b border-cyan-500/10">
+            <CardTitle className="font-display text-xl text-white tracking-widest uppercase">Misiones semanales del escuadron</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            {guildMissions.map((mission) => (
+              <div key={mission.id} className="border border-cyan-500/20 bg-background/40 p-4 clip-diagonal space-y-3">
+                <div className="text-sm font-display text-white">{mission.title}</div>
+                <div className="text-xs text-muted-foreground">{mission.description}</div>
+                <div className="flex justify-between text-[11px] font-mono">
+                  <span className="text-cyan-300">{mission.progress}/{mission.target}</span>
+                  <span className={mission.completed ? 'text-green-300' : 'text-yellow-300'}>{mission.completed ? 'COMPLETA' : mission.reward}</span>
+                </div>
+                <div className="h-2 bg-background border border-cyan-500/20 rounded-sm overflow-hidden">
+                  <div className={`h-full ${mission.completed ? 'bg-green-500' : 'bg-cyan-500/70'}`} style={{ width: `${Math.min((mission.progress / Math.max(mission.target, 1)) * 100, 100)}%` }} />
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

@@ -28,6 +28,8 @@ export interface UserProfile {
   specterName?: string;
   specterAbilityName?: string;
   specterAbilityDescription?: string;
+  discoveredSpecters?: string[];
+  specterAwakenings?: Record<string, number>;
   score: number;
   createdAt: number;
   faction?: 'Wyvern' | 'Griffon' | 'Garuda' | '';
@@ -66,6 +68,13 @@ export interface UserProfile {
     artifact?: Equipment | null;
   };
   gearPresets?: GearPreset[];
+  recentRewards?: Array<{
+    id: string;
+    type: 'gear' | 'gem' | 'currency' | 'memory' | 'title';
+    label: string;
+    value?: number;
+    createdAt: number;
+  }>;
   activeFrame?: string;
   activeColor?: string;
   starFragments?: number;
@@ -215,6 +224,9 @@ const createNewProfile = (firebaseUser: FirebaseUser): UserProfile => {
     gearInventory: [],
     equippedGear: cloneEquippedGear(),
     gearPresets: cloneGearPresets(),
+    discoveredSpecters: [],
+    specterAwakenings: {},
+    recentRewards: [],
     activeFrame: 'default',
     activeColor: 'text-white',
     starFragments: 0,
@@ -269,6 +281,9 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
           equippedGear: preset.equippedGear ? { ...preset.equippedGear } : cloneEquippedGear(),
         }))
       : undefined,
+    discoveredSpecters: data.discoveredSpecters ? [...data.discoveredSpecters] : undefined,
+    specterAwakenings: data.specterAwakenings ? { ...data.specterAwakenings } : undefined,
+    recentRewards: data.recentRewards ? data.recentRewards.map((reward) => ({ ...reward })) : undefined,
     claimedPassRewards: data.claimedPassRewards ? [...data.claimedPassRewards] : undefined,
     soulTree: data.soulTree ? { ...data.soulTree } : undefined,
     materials: data.materials ? { ...data.materials } : undefined,
@@ -306,6 +321,20 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
     }
     if (normalizedProfile.specterAbilityDescription !== resolvedSpecter.ability.description) {
       normalizedProfile.specterAbilityDescription = resolvedSpecter.ability.description;
+      needsUpdate = true;
+    }
+    const currentDiscoveries = new Set(normalizedProfile.discoveredSpecters || []);
+    if (!currentDiscoveries.has(resolvedSpecter.id)) {
+      currentDiscoveries.add(resolvedSpecter.id);
+      normalizedProfile.discoveredSpecters = Array.from(currentDiscoveries);
+      needsUpdate = true;
+    }
+    if (!normalizedProfile.specterAwakenings) {
+      normalizedProfile.specterAwakenings = {};
+      needsUpdate = true;
+    }
+    if (normalizedProfile.specterAwakenings[resolvedSpecter.id] === undefined) {
+      normalizedProfile.specterAwakenings[resolvedSpecter.id] = 0;
       needsUpdate = true;
     }
   }
@@ -386,6 +415,14 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
     normalizedProfile.gearInventory = [];
     needsUpdate = true;
   }
+  if (!normalizedProfile.discoveredSpecters) {
+    normalizedProfile.discoveredSpecters = normalizedProfile.specterId ? [normalizedProfile.specterId] : [];
+    needsUpdate = true;
+  }
+  if (!normalizedProfile.specterAwakenings) {
+    normalizedProfile.specterAwakenings = {};
+    needsUpdate = true;
+  }
   if (!normalizedProfile.equippedGear) {
     normalizedProfile.equippedGear = cloneEquippedGear();
     needsUpdate = true;
@@ -455,6 +492,10 @@ const normalizeProfile = (data: UserProfile): { normalizedProfile: UserProfile; 
     normalizedProfile.primordialPowers = [];
     normalizedProfile.activePower = '';
     normalizedProfile.pet = null;
+    needsUpdate = true;
+  }
+  if (!normalizedProfile.recentRewards) {
+    normalizedProfile.recentRewards = [];
     needsUpdate = true;
   }
 

@@ -22,6 +22,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { PRIMORDIAL_BESTIARY } from '@/data/bestiary';
+import { getWeeklyEventForMode } from '@/data/weeklyEvents';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
 import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -132,6 +134,7 @@ export const SecretBosses: React.FC = () => {
   const [rewardMemory, setRewardMemory] = useState(0);
   const [hiddenOptions, setHiddenOptions] = useState<number[]>([]);
   const [specterBarrierCharges, setSpecterBarrierCharges] = useState(0);
+  const weeklyEvent = useMemo(() => getWeeklyEventForMode('Primordiales'), []);
 
   const selectedBossData = useMemo(
     () => SECRET_BOSSES.find((boss) => boss.id === selectedBoss) || null,
@@ -283,7 +286,7 @@ export const SecretBosses: React.FC = () => {
 
     if (isCorrect) {
       audio.playSFX('success');
-      const bossDamage = Math.max(10, Math.round(10 * combatBonuses.damageMultiplier));
+      const bossDamage = Math.max(10, Math.round(10 * combatBonuses.damageMultiplier * (weeklyEvent?.effect.damageMultiplier || 1)));
       const nextBossHealth = Math.max(0, bossHealth - bossDamage);
       setBossHealth(nextBossHealth);
       toast.success('Impacto al Primordial.');
@@ -407,6 +410,13 @@ export const SecretBosses: React.FC = () => {
               <p className="text-xs font-mono text-muted-foreground">{activeSetEffect.description}</p>
             </div>
           )}
+          {weeklyEvent && (
+            <div className="max-w-2xl mx-auto mt-4 bg-background/50 border border-fuchsia-500/20 p-4 clip-diagonal text-left space-y-2">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-fuchsia-300">Evento semanal</p>
+              <p className="font-display text-lg text-white">{weeklyEvent.name}</p>
+              <p className="text-xs font-mono text-muted-foreground">{weeklyEvent.bonuses.join(' | ')}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -444,6 +454,35 @@ export const SecretBosses: React.FC = () => {
             );
           })}
         </div>
+
+        <Card className="glass-panel border-accent/20 clip-card mt-8">
+          <CardHeader className="border-b border-accent/10">
+            <CardTitle className="font-display text-2xl text-white uppercase tracking-widest">Codex del Inframundo</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {PRIMORDIAL_BESTIARY.map((entry) => {
+              const relatedBoss = SECRET_BOSSES.find((boss) => boss.id === entry.id);
+              const isDefeated = relatedBoss ? profile?.titles?.includes(relatedBoss.rewardTitle) : false;
+              return (
+                <div key={entry.id} className="border border-accent/20 bg-background/40 clip-diagonal p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-lg font-display text-white">{entry.name}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-accent">{entry.title}</div>
+                    </div>
+                    <div className={`text-[10px] uppercase tracking-widest px-2 py-1 border clip-diagonal ${isDefeated ? 'border-green-500/40 text-green-300 bg-green-500/10' : 'border-red-500/30 text-red-300 bg-red-500/10'}`}>
+                      {isDefeated ? 'Derrotado' : 'No derrotado'}
+                    </div>
+                  </div>
+                  <div className="text-xs font-mono text-muted-foreground">Amenaza: {entry.threat} | Elemento: {entry.element}</div>
+                  <p className="text-sm text-white/90"><span className="text-cyan-300">Debilidad:</span> {entry.weakness}</p>
+                  <p className="text-sm text-white/80"><span className="text-yellow-300">Patron:</span> {entry.behavior}</p>
+                  <p className="text-sm text-white/80"><span className="text-emerald-300">Recompensa:</span> {entry.rewardHint}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
       </div>
     );
   }

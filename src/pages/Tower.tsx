@@ -6,29 +6,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Zap, Skull, Flame, Trophy, Sparkles, PackageOpen, Snowflake, Moon, Circle, ArrowUp } from 'lucide-react';
+import { Shield, Zap, Skull, Flame, Trophy, Sparkles, PackageOpen, Snowflake, Moon, Circle, ArrowUp, ShoppingBag, HeartPulse } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
-import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier, calculateSetBonus, getSetBonusEffect } from '@/lib/rpg';
+import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier } from '@/lib/rpg';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { getSpecterBonuses, resolveSpecterForProfile } from '@/data/specters';
+import { getCombatContextFor } from '@/lib/combat';
+import { getWeeklyEventForMode } from '@/data/weeklyEvents';
+import { captureError, trackEconomyReward, trackModeRun } from '@/lib/analytics';
+import { applyRunRelicBonuses, getRelicOffers, RunRelic } from '@/lib/roguelite';
 
 export const Tower: React.FC = () => {
   const { user, profile } = useAuth();
-  const activeSpecter = resolveSpecterForProfile(profile || undefined);
-  const specterBonuses = getSpecterBonuses(profile || undefined);
-  const activeSetEffect = getSetBonusEffect(calculateSetBonus(profile?.equippedGear || {}));
-  const combatBonuses = useMemo(() => ({
-    damageMultiplier: specterBonuses.damageMultiplier * (activeSetEffect?.bonuses.damageMultiplier || 1),
-    bonusHealth: specterBonuses.bonusHealth + (activeSetEffect?.bonuses.healthBonus || 0),
-    bonusTime: specterBonuses.bonusTime + (activeSetEffect?.bonuses.timeBonus || 0),
-    lootChanceBonus: specterBonuses.lootChanceBonus + (activeSetEffect?.bonuses.lootChanceBonus || 0),
-    dodgeChance: specterBonuses.dodgeChance,
-    startingShields: specterBonuses.startingShields + (activeSetEffect?.bonuses.barrierShields || 0),
-    obolosMultiplier: specterBonuses.obolosMultiplier * (activeSetEffect?.bonuses.obolosMultiplier || 1),
-  }), [specterBonuses, activeSetEffect]);
+  const [runRelics, setRunRelics] = useState<RunRelic[]>([]);
+  const [intermissionOffers, setIntermissionOffers] = useState<RunRelic[]>([]);
+  const [intermissionType, setIntermissionType] = useState<'relic' | 'merchant' | null>(null);
+  const runRelicBonuses = useMemo(() => applyRunRelicBonuses(runRelics), [runRelics]);
   
-  const [gameState, setGameState] = useState<'intro' | 'playing' | 'result'>('intro');
+  const [gameState, setGameState] = useState<'intro' | 'playing' | 'intermission' | 'result'>('intro');
   const [currentFloor, setCurrentFloor] = useState(1);
   const [questions, setQuestions] = useState<GeneratedTrivia[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -48,6 +43,34 @@ export const Tower: React.FC = () => {
   const [runLoot, setRunLoot] = useState<Equipment[]>([]);
   const [runStarFragments, setRunStarFragments] = useState(0);
   const [specterBarrierCharges, setSpecterBarrierCharges] = useState(0);
+  const weeklyEvent = useMemo(() => getWeeklyEventForMode('Torre'), []);
+  const combatContext = useMemo(
+    () => getCombatContextFor(profile, {
+      mode: 'tower',
+      enemyElement,
+      enemyTags: [isBossStage ? 'boss' : 'floor', `floor-${currentFloor}`],
+    }),
+    [profile, enemyElement, isBossStage, currentFloor]
+  );
+  const { activeSpecter, activeSetEffect, awakeningLevel, collectionProgress } = combatContext;
+  const combatBonuses = useMemo(
+    () => ({
+      damageMultiplier: combatContext.bonuses.damageMultiplier * runRelicBonuses.damageMultiplier,
+      bonusHealth: combatContext.bonuses.bonusHealth + runRelicBonuses.bonusHealth,
+      bonusTime: combatContext.bonuses.bonusTime + runRelicBonuses.bonusTime,
+      lootChanceBonus: combatContext.bonuses.lootChanceBonus + runRelicBonuses.lootChanceBonus,
+      dodgeChance: combatContext.bonuses.dodgeChance + runRelicBonuses.dodgeChance,
+      startingShields: combatContext.bonuses.startingShields + runRelicBonuses.startingShields,
+      obolosMultiplier: combatContext.bonuses.obolosMultiplier * runRelicBonuses.obolosMultiplier * (weeklyEvent?.effect.obolosMultiplier || 1),
+      comboBonus: combatContext.bonuses.comboBonus + runRelicBonuses.comboBonus,
+      memoryDropBonus: combatContext.bonuses.memoryDropBonus + runRelicBonuses.memoryDropBonus,
+    }),
+    [combatContext.bonuses, runRelicBonuses, weeklyEvent]
+  );
+  const getMaxHealth = useMemo(
+    () => 100 + (profile?.equippedGear?.armor?.stats?.health || 0) + combatBonuses.bonusHealth,
+    [profile?.equippedGear?.armor?.stats?.health, combatBonuses.bonusHealth]
+  );
 
   // Timer Effect
   useEffect(() => {
@@ -59,6 +82,20 @@ export const Tower: React.FC = () => {
     }
   }, [timeLeft, gameState, revealedImage]);
 
+  const getFloorTime = (bossFloor: boolean) => {
+    let initialTime = bossFloor ? 10 : 15;
+    if (profile?.equippedGear?.artifact?.stats?.time) initialTime += profile.equippedGear.artifact.stats.time;
+    if (profile?.faction === 'Griffon') initialTime += 3;
+    initialTime += combatBonuses.bonusTime;
+    return initialTime;
+  };
+
+  const openIntermission = (type: 'relic' | 'merchant') => {
+    setIntermissionType(type);
+    setIntermissionOffers(getRelicOffers('tower', currentFloor, runRelics.map((relic) => relic.id), type));
+    setGameState('intermission');
+  };
+
   const startFloor = async (floor: number) => {
     setIsGenerating(true);
     // Difficulty scales with floor
@@ -67,6 +104,7 @@ export const Tower: React.FC = () => {
     
     if (generated.length === 0) {
       toast.error("Error al generar el piso. Intenta de nuevo.");
+      captureError('tower_floor_generation_failed', 'tower.startFloor', { floor }, user?.uid);
       setIsGenerating(false);
       return;
     }
@@ -84,17 +122,10 @@ export const Tower: React.FC = () => {
     const elements: Element[] = ['Fuego', 'Hielo', 'Rayo', 'Oscuridad', 'Neutral'];
     setEnemyElement(elements[Math.floor(Math.random() * elements.length)]);
     
-    let initialTime = 15;
-    if (profile?.equippedGear?.artifact?.stats?.time) initialTime += profile.equippedGear.artifact.stats.time;
-    if (profile?.faction === 'Griffon') initialTime += 3;
-    initialTime += combatBonuses.bonusTime;
-    setTimeLeft(initialTime);
+    setTimeLeft(getFloorTime(false));
     
     // Health carries over between floors, but we cap it at max
-    let maxHealth = 100;
-    if (profile?.equippedGear?.armor?.stats?.health) maxHealth += profile.equippedGear.armor.stats.health;
-    maxHealth += combatBonuses.bonusHealth;
-    if (floor === 1) setPlayerHealth(maxHealth);
+    if (floor === 1) setPlayerHealth(getMaxHealth);
   };
 
   const handleStartRun = () => {
@@ -102,8 +133,11 @@ export const Tower: React.FC = () => {
     setCurrentFloor(1);
     setRunLoot([]);
     setRunStarFragments(0);
-    setSpecterBarrierCharges(combatBonuses.startingShields);
-    startFloor(1);
+    setRunRelics([]);
+    setIntermissionOffers([]);
+    setIntermissionType(null);
+    setSpecterBarrierCharges(combatContext.bonuses.startingShields);
+    window.setTimeout(() => startFloor(1), 0);
   };
 
   const triggerDamage = (target: 'player' | 'enemy') => {
@@ -153,7 +187,7 @@ export const Tower: React.FC = () => {
       
       // Loot Drop Logic for Tower
       // Higher floors = better loot chance
-      const lootChance = (isBossStage ? 1.0 : 0.2 + (currentFloor * 0.02)) + combatBonuses.lootChanceBonus;
+      const lootChance = (isBossStage ? 1.0 : 0.2 + (currentFloor * 0.02)) + combatBonuses.lootChanceBonus + (weeklyEvent?.effect.lootChanceBonus || 0);
       if (Math.random() < lootChance) {
         const droppedLoot = rollLoot(isBossStage);
         if (droppedLoot) {
@@ -167,7 +201,7 @@ export const Tower: React.FC = () => {
       
       // Star Fragments drop
       if (Math.random() < 0.3 || isBossStage) {
-        const fragments = isBossStage ? Math.floor(Math.random() * 3) + 1 : 1;
+        const fragments = isBossStage ? Math.floor(Math.random() * 3) + 1 + runRelicBonuses.starFragmentBonus : 1;
         setRunStarFragments(prev => prev + fragments);
         toast.success(`+${fragments} Fragmento(s) de Estrella`);
       }
@@ -238,17 +272,20 @@ export const Tower: React.FC = () => {
       const elements: Element[] = ['Fuego', 'Hielo', 'Rayo', 'Oscuridad', 'Neutral'];
       setEnemyElement(elements[Math.floor(Math.random() * elements.length)]);
 
-      let nextTime = isNextBoss ? 10 : 15;
-      if (profile?.equippedGear?.artifact?.stats?.time) nextTime += profile.equippedGear.artifact.stats.time;
-      if (profile?.faction === 'Griffon') nextTime += 3;
-      nextTime += combatBonuses.bonusTime;
-      setTimeLeft(nextTime);
+      setTimeLeft(getFloorTime(isNextBoss));
       setRevealedImage(false);
     } else {
       // Floor cleared!
       toast.success(`Â¡Piso ${currentFloor} superado!`);
-      setCurrentFloor(prev => prev + 1);
-      startFloor(currentFloor + 1);
+      const nextFloor = currentFloor + 1;
+      if (currentFloor % 5 === 0) {
+        openIntermission('merchant');
+      } else if (currentFloor % 3 === 0) {
+        openIntermission('relic');
+      } else {
+        setCurrentFloor(nextFloor);
+        startFloor(nextFloor);
+      }
     }
   };
 
@@ -270,11 +307,50 @@ export const Tower: React.FC = () => {
         }
 
         await updateDoc(docRef, updates);
+        trackEconomyReward('tower', { starFragments: runStarFragments, loot: runLoot.length, highestFloor: newHighestFloor }, user.uid);
+        trackModeRun('tower', survived ? 'win' : 'lose', { floor: currentFloor, relics: runRelics.length, loot: runLoot.length }, user.uid);
         
       } catch (error) {
         console.error("Error saving run results", error);
+        captureError(error, 'tower.finishRun', { floor: currentFloor }, user.uid);
       }
     }
+  };
+
+  const handleClaimRelic = (relic: RunRelic) => {
+    audio.playSFX('success');
+    setRunRelics((current) => [...current, relic]);
+    toast.success(`${relic.name} se une a tu build de la run.`);
+    const nextFloor = currentFloor + 1;
+    setCurrentFloor(nextFloor);
+    setPlayerHealth((current) => Math.min(getMaxHealth + (relic.bonuses.bonusHealth || 0), current + (relic.bonuses.healingBonus || 0)));
+    setSpecterBarrierCharges((current) => current + (relic.bonuses.startingShields || 0));
+    window.setTimeout(() => startFloor(nextFloor), 0);
+  };
+
+  const handleMerchantChoice = (choice: RunRelic | 'heal' | 'skip') => {
+    const nextFloor = currentFloor + 1;
+
+    if (choice === 'heal') {
+      audio.playSFX('success');
+      setPlayerHealth((current) => Math.min(getMaxHealth, current + 30 + runRelicBonuses.healingBonus));
+      toast.success('El mercader remienda tu armadura y restaura tu vigor.');
+    } else if (choice !== 'skip') {
+      const relicCost = 3;
+      if (runStarFragments < relicCost) {
+        toast.error(`Necesitas ${relicCost} fragmentos estelares para comprar ${choice.name}.`);
+        return;
+      }
+      audio.playSFX('success');
+      setRunStarFragments((current) => Math.max(0, current - relicCost));
+      setRunRelics((current) => [...current, choice]);
+      toast.success(`Compraste ${choice.name} por ${relicCost} fragmentos.`);
+    } else {
+      audio.playSFX('click');
+    }
+
+    setCurrentFloor(nextFloor);
+    window.setTimeout(() => startFloor(nextFloor), 0);
   };
 
   const getElementIcon = (element: Element) => {
@@ -332,6 +408,30 @@ export const Tower: React.FC = () => {
                 RÃ©cord actual: Piso {profile?.highestTowerFloor || 0}
               </div>
             </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-mono">
+              <div className="p-4 border border-cyan-500/20 clip-diagonal bg-background/40 text-left">
+                <div className="text-[10px] uppercase tracking-widest text-cyan-400 mb-2">Sinergia del Espectro</div>
+                <div className="text-white">Despertar {awakeningLevel}/3</div>
+                <div className="text-muted-foreground text-xs">{collectionProgress.completedFamilies.length} familias completas</div>
+              </div>
+              <div className="p-4 border border-yellow-500/20 clip-diagonal bg-background/40 text-left">
+                <div className="text-[10px] uppercase tracking-widest text-yellow-400 mb-2">Sistema Roguelite</div>
+                <div className="text-white">Reliquias cada 3 pisos</div>
+                <div className="text-muted-foreground text-xs">Mercader y descanso cada 5 pisos</div>
+              </div>
+              <div className="p-4 border border-emerald-500/20 clip-diagonal bg-background/40 text-left">
+                <div className="text-[10px] uppercase tracking-widest text-emerald-400 mb-2">Meta de Run</div>
+                <div className="text-white">Escalar, comprar y adaptar build</div>
+                <div className="text-muted-foreground text-xs">Tu build cambia piso a piso</div>
+              </div>
+            </div>
+            {weeklyEvent && (
+              <div className="max-w-2xl mx-auto bg-background/50 border border-amber-500/20 p-4 clip-diagonal text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-amber-400">Evento semanal activo</p>
+                <p className="font-display text-lg text-white">{weeklyEvent.name}</p>
+                <p className="text-xs font-mono text-muted-foreground">{weeklyEvent.bonuses.join(' | ')}</p>
+              </div>
+            )}
             <Button 
               onClick={handleStartRun} 
               disabled={isGenerating}
@@ -358,6 +458,7 @@ export const Tower: React.FC = () => {
           <div className="flex gap-4 font-mono text-xs">
             <span className="flex items-center gap-1 text-cyan-400"><Sparkles className="w-3 h-3"/> {runStarFragments}</span>
             <span className="flex items-center gap-1 text-yellow-400"><PackageOpen className="w-3 h-3"/> {runLoot.length}</span>
+            <span className="flex items-center gap-1 text-emerald-400"><Shield className="w-3 h-3"/> {runRelics.length}</span>
           </div>
         </div>
 
@@ -386,7 +487,7 @@ export const Tower: React.FC = () => {
               <motion.div 
                 className={`h-full ${playerHealth <= 25 ? 'bg-primary' : 'bg-purple-500'} shadow-[0_0_10px_currentColor]`}
                 initial={{ width: '100%' }}
-                animate={{ width: `${(playerHealth / (100 + (profile?.equippedGear?.armor?.stats?.health || 0))) * 100}%` }}
+                animate={{ width: `${(playerHealth / Math.max(getMaxHealth, 1)) * 100}%` }}
                 transition={{ duration: 0.3 }}
               />
             </div>
@@ -457,6 +558,82 @@ export const Tower: React.FC = () => {
     );
   }
 
+  if (gameState === 'intermission') {
+    return (
+      <div className="max-w-5xl mx-auto mt-16 space-y-8 relative z-10">
+        <div className="text-center space-y-3">
+          {intermissionType === 'merchant' ? <ShoppingBag className="w-14 h-14 text-yellow-400 mx-auto" /> : <HeartPulse className="w-14 h-14 text-cyan-400 mx-auto" />}
+          <h2 className="text-4xl font-display text-white uppercase tracking-widest">
+            {intermissionType === 'merchant' ? 'Mercader del Abismo' : 'Camara de Reliquias'}
+          </h2>
+          <p className="text-sm font-mono text-muted-foreground">
+            {intermissionType === 'merchant'
+              ? 'Cada 5 pisos aparece un mercader. Compra una reliquia o cura tu armadura antes del siguiente salto.'
+              : 'Cada 3 pisos eliges una reliquia temporal para adaptar tu ascenso.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {intermissionOffers.map((relic) => (
+            <Card key={relic.id} className="glass-panel border-purple-500/20 clip-card">
+              <CardHeader className="border-b border-purple-500/10">
+                <CardTitle className="font-display text-lg text-white">{relic.name}</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3">
+                <div className="text-xs uppercase tracking-widest text-purple-300">{relic.tier}</div>
+                <p className="text-sm text-white/90">{relic.description}</p>
+                <Button
+                  onClick={() => (intermissionType === 'merchant' ? handleMerchantChoice(relic) : handleClaimRelic(relic))}
+                  className="w-full clip-diagonal bg-purple-600 hover:bg-purple-500 text-white uppercase tracking-widest"
+                >
+                  {intermissionType === 'merchant' ? 'Comprar (3 fragmentos)' : 'Tomar Reliquia'}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {intermissionType === 'merchant' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="glass-panel border-emerald-500/20 clip-card">
+              <CardContent className="pt-6 space-y-3">
+                <div className="font-display text-white text-xl">Reparacion Completa</div>
+                <p className="text-sm text-muted-foreground">Restaura 30 HP mas tus bonos de curacion temporal.</p>
+                <Button onClick={() => handleMerchantChoice('heal')} className="w-full clip-diagonal bg-emerald-600 hover:bg-emerald-500 text-white uppercase tracking-widest">
+                  Curarme y Seguir
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="glass-panel border-accent/20 clip-card">
+              <CardContent className="pt-6 space-y-3">
+                <div className="font-display text-white text-xl">Continuar Sin Comprar</div>
+                <p className="text-sm text-muted-foreground">Conserva tus fragmentos y sube al siguiente piso.</p>
+                <Button onClick={() => handleMerchantChoice('skip')} variant="outline" className="w-full clip-diagonal border-accent/30 uppercase tracking-widest">
+                  Saltar la Tienda
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {runRelics.length > 0 && (
+          <Card className="glass-panel border-cyan-500/20 clip-card">
+            <CardHeader className="border-b border-cyan-500/10">
+              <CardTitle className="font-display text-lg text-cyan-300">Build actual de la run</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 flex flex-wrap gap-2">
+              {runRelics.map((relic) => (
+                <span key={relic.id} className="px-3 py-2 border border-cyan-500/20 bg-background/50 text-xs font-mono text-white clip-diagonal">
+                  {relic.name}
+                </span>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
   if (gameState === 'result') {
     return (
       <div className="max-w-md mx-auto mt-20 text-center space-y-8 relative z-10">
@@ -499,6 +676,19 @@ export const Tower: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {runRelics.length > 0 && (
+              <div>
+                <span className="text-sm text-cyan-400 uppercase tracking-widest font-mono block mb-2">Reliquias de la Run</span>
+                <div className="flex flex-wrap gap-2">
+                  {runRelics.map((relic) => (
+                    <span key={relic.id} className="text-xs font-mono px-2 py-1 border border-cyan-500/30 bg-cyan-500/10 clip-diagonal text-white">
+                      {relic.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <Button onClick={() => { audio.playSFX('click'); setGameState('intro'); }} className="w-full bg-purple-900/20 hover:bg-purple-900/40 text-purple-400 border border-purple-500/50 clip-diagonal py-6 font-bold tracking-widest uppercase transition-all hover:shadow-[0_0_15px_rgba(168,85,247,0.5)] group" onMouseEnter={() => audio.playSFX('hover')}>

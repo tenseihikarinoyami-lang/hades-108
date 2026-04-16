@@ -112,7 +112,7 @@ const BOSS_SEEDS: BossArtSeed[] = [
   { id: 'typhon-storm', name: 'Typhon, Cataclismo Final', element: 'Fuego', accent: '#f97316', accentSoft: '#fdba74', symbol: 'storm', questionTheme: 'boss:typhon anime manga manhua manhwa videojuegos', maxHealth: 150000 },
 ];
 
-const DAILY_BOSS_POOL: DailyRaidBoss[] = BOSS_SEEDS.map((boss) => ({
+export const DAILY_BOSS_POOL: DailyRaidBoss[] = BOSS_SEEDS.map((boss) => ({
   id: boss.id,
   name: boss.name,
   maxHealth: boss.maxHealth,

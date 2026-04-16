@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Flame, Shield, Skull, Swords, Trophy } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { WORLD_BESTIARY } from '@/data/bestiary';
+import { getWeeklyEventForMode } from '@/data/weeklyEvents';
 import { getCombatContext } from '@/lib/combat';
 import { GeneratedTrivia, generateInfiniteTrivia } from '@/lib/gemini';
 import { Equipment, rollLoot } from '@/lib/rpg';
@@ -50,6 +52,7 @@ export const WorldBoss: React.FC = () => {
   const [isWeekend, setIsWeekend] = useState(false);
   const [correctHits, setCorrectHits] = useState(0);
   const [finalRewards, setFinalRewards] = useState<string[]>([]);
+  const weeklyEvent = useMemo(() => getWeeklyEventForMode('World Boss'), []);
 
   useEffect(() => {
     const day = new Date().getDay();
@@ -102,7 +105,7 @@ export const WorldBoss: React.FC = () => {
 
     if (isCorrect) {
       audio.playSFX('success');
-      const damage = Math.round((1000 + (profile?.level || 1) * 100) * combatBonuses.damageMultiplier);
+      const damage = Math.round((1000 + (profile?.level || 1) * 100) * combatBonuses.damageMultiplier * (weeklyEvent?.effect.damageMultiplier || 1));
       setDamageDealt((prev) => prev + damage);
       setCorrectHits((prev) => prev + 1);
 
@@ -167,6 +170,7 @@ export const WorldBoss: React.FC = () => {
   if (gameState === 'info') {
     const currentHealth = Math.max(0, bossData?.health || 0);
     const healthPercent = Math.max(0, Math.min(100, (currentHealth / MAX_HEALTH) * 100));
+    const bestiaryEntry = WORLD_BESTIARY[0];
 
     return (
       <div className="max-w-4xl mx-auto space-y-12 relative z-10">
@@ -232,6 +236,23 @@ export const WorldBoss: React.FC = () => {
                 </p>
               </div>
             </div>
+
+            {bestiaryEntry && (
+              <div className="max-w-3xl mx-auto border border-red-500/20 bg-background/40 p-4 clip-diagonal text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-red-300">Codex del Cataclismo</p>
+                <p className="text-sm text-white/90"><span className="text-cyan-300">Debilidad:</span> {bestiaryEntry.weakness}</p>
+                <p className="text-sm text-white/80"><span className="text-yellow-300">Patron:</span> {bestiaryEntry.behavior}</p>
+                <p className="text-sm text-white/80"><span className="text-emerald-300">Recompensa:</span> {bestiaryEntry.rewardHint}</p>
+              </div>
+            )}
+
+            {weeklyEvent && (
+              <div className="max-w-3xl mx-auto border border-fuchsia-500/20 bg-background/40 p-4 clip-diagonal text-left space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.3em] text-fuchsia-300">Evento semanal</p>
+                <p className="font-display text-white">{weeklyEvent.name}</p>
+                <p className="text-xs font-mono text-muted-foreground">{weeklyEvent.bonuses.join(' | ')}</p>
+              </div>
+            )}
 
             <Button
               onClick={startFight}

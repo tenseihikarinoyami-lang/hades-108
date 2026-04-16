@@ -1,4 +1,17 @@
+import type { Element } from '@/lib/rpg';
+
 export type SpecterFaction = 'Wyvern' | 'Griffon' | 'Garuda';
+export type SpecterLegionRank = 'Juez' | 'Elite' | 'Avanzado' | 'Base';
+export type SpecterFamily =
+  | 'Predadores del Abismo'
+  | 'Bastion del Inframundo'
+  | 'Alas del Eclipse'
+  | 'Sombras de Cocytos'
+  | 'Cazadores de Reliquias'
+  | 'Custodios de Mnemosine'
+  | 'Frenesi Carmesi'
+  | 'Tributo del Juicio'
+  | 'Egidas del Tartaro';
 
 export type SpecterCrest =
   | 'wing'
@@ -51,7 +64,24 @@ export interface SpecterDefinition {
   faction: SpecterFaction;
   factionLabel: string;
   legion: string;
+  legionRank: SpecterLegionRank;
+  narrativeRarity: SpecterLegionRank;
+  family: SpecterFamily;
   crest: SpecterCrest;
+  affinity: {
+    name: string;
+    description: string;
+    favoredElements: Element[];
+    favoredModes: string[];
+    enemyTags: string[];
+    bonuses: Partial<SpecterBonuses>;
+  };
+  awakenings: Array<{
+    level: 1 | 2 | 3;
+    name: string;
+    description: string;
+    bonuses: Partial<SpecterBonuses>;
+  }>;
   ability: {
     name: string;
     description: string;
@@ -79,6 +109,18 @@ const FACTION_LABELS: Record<SpecterFaction, string> = {
   Wyvern: 'Ejercito de Wyvern',
   Griffon: 'Ejercito de Griffon',
   Garuda: 'Ejercito de Garuda',
+};
+
+const FAMILY_BY_ARCHETYPE: Record<SpecterAbilityArchetype, SpecterFamily> = {
+  assault: 'Predadores del Abismo',
+  bulwark: 'Bastion del Inframundo',
+  tempo: 'Alas del Eclipse',
+  shadow: 'Sombras de Cocytos',
+  relic: 'Cazadores de Reliquias',
+  memory: 'Custodios de Mnemosine',
+  combo: 'Frenesi Carmesi',
+  tribute: 'Tributo del Juicio',
+  barrier: 'Egidas del Tartaro',
 };
 
 const FACTION_PALETTES: Record<SpecterFaction, string[][]> = {
@@ -154,6 +196,91 @@ const ABILITY_TEMPLATES: Record<
     prefix: 'Egida',
     description: (beast) => `La egida de ${beast} te otorga 1 barrera espectral al comienzo de cada run.`,
     bonuses: { startingShields: 1 },
+  },
+};
+
+const AFFINITY_TEMPLATES: Record<
+  SpecterAbilityArchetype,
+  {
+    name: string;
+    description: string;
+    favoredElements: Element[];
+    favoredModes: string[];
+    enemyTags: string[];
+    bonuses: Partial<SpecterBonuses>;
+  }
+> = {
+  assault: {
+    name: 'Afinidad de Caceria',
+    description: 'Aumenta el dano contra jefes y enemigos agresivos de fuego o rayo.',
+    favoredElements: ['Fuego', 'Rayo'],
+    favoredModes: ['tower', 'world-boss', 'raids', 'secret-bosses'],
+    enemyTags: ['boss', 'primordial', 'raid', 'world-boss'],
+    bonuses: { damageMultiplier: 1.08, comboBonus: 0.1 },
+  },
+  bulwark: {
+    name: 'Afinidad de Fortaleza',
+    description: 'Refuerza la resistencia en exploracion, defensa y pisos largos.',
+    favoredElements: ['Neutral', 'Hielo'],
+    favoredModes: ['tower', 'labyrinth', 'campaign'],
+    enemyTags: ['guardian', 'elite'],
+    bonuses: { bonusHealth: 14, startingShields: 1 },
+  },
+  tempo: {
+    name: 'Afinidad del Viento Negro',
+    description: 'Otorga tiempo extra y mejor ritmo en pruebas de velocidad.',
+    favoredElements: ['Rayo', 'Neutral'],
+    favoredModes: ['tower', 'labyrinth', 'arena', 'saint-mode'],
+    enemyTags: ['speed', 'tempo'],
+    bonuses: { bonusTime: 2, comboBonus: 0.1 },
+  },
+  shadow: {
+    name: 'Afinidad del Vacio',
+    description: 'Vuelve al espectro mas escurridizo en dominios oscuros.',
+    favoredElements: ['Oscuridad'],
+    favoredModes: ['battle-royale', 'secret-bosses', 'world-boss'],
+    enemyTags: ['stealth', 'chaos', 'void'],
+    bonuses: { dodgeChance: 0.08, damageMultiplier: 1.04 },
+  },
+  relic: {
+    name: 'Afinidad del Saqueador',
+    description: 'Detecta tesoros ocultos y mejora el botin en runs largas.',
+    favoredElements: ['Neutral', 'Hielo'],
+    favoredModes: ['labyrinth', 'raids', 'tower'],
+    enemyTags: ['treasure', 'relic'],
+    bonuses: { lootChanceBonus: 0.08, obolosMultiplier: 1.08 },
+  },
+  memory: {
+    name: 'Afinidad de Mnemosine',
+    description: 'Conecta mejor con reliquias mentales y recuerdos perdidos.',
+    favoredElements: ['Oscuridad', 'Hielo'],
+    favoredModes: ['labyrinth', 'secret-bosses', 'campaign'],
+    enemyTags: ['memory', 'archive', 'codex'],
+    bonuses: { memoryDropBonus: 0.05, bonusTime: 1 },
+  },
+  combo: {
+    name: 'Afinidad de Frenesi',
+    description: 'Castiga mejor cuando la run premia ritmo, precision y agresion.',
+    favoredElements: ['Fuego', 'Rayo'],
+    favoredModes: ['arena', 'battle-royale', 'world-boss'],
+    enemyTags: ['combo', 'rush'],
+    bonuses: { comboBonus: 0.2, damageMultiplier: 1.05 },
+  },
+  tribute: {
+    name: 'Afinidad del Tributo',
+    description: 'Extrae mas riqueza del combate y de las incursiones largas.',
+    favoredElements: ['Neutral'],
+    favoredModes: ['arena', 'raids', 'campaign', 'guilds'],
+    enemyTags: ['tribute', 'economic'],
+    bonuses: { obolosMultiplier: 1.1, lootChanceBonus: 0.04 },
+  },
+  barrier: {
+    name: 'Afinidad del Bastion',
+    description: 'Potencia barreras y supervivencia frente a castigos severos.',
+    favoredElements: ['Hielo', 'Oscuridad'],
+    favoredModes: ['secret-bosses', 'world-boss', 'tower', 'labyrinth'],
+    enemyTags: ['boss', 'trap', 'drain'],
+    bonuses: { startingShields: 1, bonusHealth: 10 },
   },
 };
 
@@ -405,6 +532,93 @@ const buildLegion = (faction: SpecterFaction, index: number) => {
   return `${tier} ${order.toString().padStart(2, '0')}`;
 };
 
+const buildLegionRank = (index: number): SpecterLegionRank => {
+  const position = index + 1;
+  if (position === 1) return 'Juez';
+  if (position <= 6) return 'Elite';
+  if (position <= 18) return 'Avanzado';
+  return 'Base';
+};
+
+const mergeBonuses = (base: SpecterBonuses, extra?: Partial<SpecterBonuses>): SpecterBonuses => ({
+  damageMultiplier: base.damageMultiplier * (extra?.damageMultiplier || 1),
+  bonusHealth: base.bonusHealth + (extra?.bonusHealth || 0),
+  bonusTime: base.bonusTime + (extra?.bonusTime || 0),
+  lootChanceBonus: base.lootChanceBonus + (extra?.lootChanceBonus || 0),
+  memoryDropBonus: base.memoryDropBonus + (extra?.memoryDropBonus || 0),
+  dodgeChance: base.dodgeChance + (extra?.dodgeChance || 0),
+  startingShields: base.startingShields + (extra?.startingShields || 0),
+  comboBonus: base.comboBonus + (extra?.comboBonus || 0),
+  obolosMultiplier: base.obolosMultiplier * (extra?.obolosMultiplier || 1),
+});
+
+const buildAffinity = (archetype: SpecterAbilityArchetype) => AFFINITY_TEMPLATES[archetype];
+
+const buildAwakenings = (beast: string, archetype: SpecterAbilityArchetype) => {
+  const stages: Record<
+    SpecterAbilityArchetype,
+    Array<{
+      level: 1 | 2 | 3;
+      name: string;
+      description: (beastName: string) => string;
+      bonuses: Partial<SpecterBonuses>;
+    }>
+  > = {
+    assault: [
+      { level: 1, name: 'Colmillo Latente', description: (name) => `La furia de ${name} gana mas filo.`, bonuses: { damageMultiplier: 1.04 } },
+      { level: 2, name: 'Predacion Estigia', description: (name) => `${name} remata con mas precision y acelera las rachas.`, bonuses: { damageMultiplier: 1.05, comboBonus: 0.1 } },
+      { level: 3, name: 'Soberania del Cazador', description: (name) => `${name} domina los duelos largos y rompe defensas divinas.`, bonuses: { damageMultiplier: 1.08, bonusTime: 1 } },
+    ],
+    bulwark: [
+      { level: 1, name: 'Caparazon Vivo', description: (name) => `${name} endurece tu resistencia inicial.`, bonuses: { bonusHealth: 10 } },
+      { level: 2, name: 'Muralla Infernal', description: (name) => `${name} consolida una defensa inquebrantable.`, bonuses: { bonusHealth: 14, startingShields: 1 } },
+      { level: 3, name: 'Bastion de Hades', description: (name) => `${name} protege el alma del espectro en runs largas.`, bonuses: { bonusHealth: 18, dodgeChance: 0.04 } },
+    ],
+    tempo: [
+      { level: 1, name: 'Pulso Rapido', description: (name) => `${name} acelera tu reaccion.`, bonuses: { bonusTime: 1 } },
+      { level: 2, name: 'Reloj Profano', description: (name) => `${name} estira el margen de cada decision.`, bonuses: { bonusTime: 2, comboBonus: 0.08 } },
+      { level: 3, name: 'Dominio del Viento', description: (name) => `${name} te vuelve letal en modos con reloj.`, bonuses: { bonusTime: 3, damageMultiplier: 1.04 } },
+    ],
+    shadow: [
+      { level: 1, name: 'Paso Velado', description: (name) => `${name} aprende a esquivar en silencio.`, bonuses: { dodgeChance: 0.04 } },
+      { level: 2, name: 'Manto del Abismo', description: (name) => `${name} hace del vacio un refugio.`, bonuses: { dodgeChance: 0.05, bonusTime: 1 } },
+      { level: 3, name: 'Inexistencia', description: (name) => `${name} anula la represalia del enemigo.`, bonuses: { dodgeChance: 0.06, damageMultiplier: 1.04 } },
+    ],
+    relic: [
+      { level: 1, name: 'Ojo del Botin', description: (name) => `${name} detecta mejores tesoros.`, bonuses: { lootChanceBonus: 0.04 } },
+      { level: 2, name: 'Saqueo del Estigio', description: (name) => `${name} refuerza la caza de reliquias.`, bonuses: { lootChanceBonus: 0.05, obolosMultiplier: 1.05 } },
+      { level: 3, name: 'Codigo del Recaudador', description: (name) => `${name} vuelve cada run mas rentable.`, bonuses: { lootChanceBonus: 0.06, obolosMultiplier: 1.06 } },
+    ],
+    memory: [
+      { level: 1, name: 'Eco Profundo', description: (name) => `${name} escucha los recuerdos perdidos.`, bonuses: { memoryDropBonus: 0.03 } },
+      { level: 2, name: 'Archivo de Sombras', description: (name) => `${name} consolida reliquias de memoria.`, bonuses: { memoryDropBonus: 0.04, bonusTime: 1 } },
+      { level: 3, name: 'Mnemosine Negra', description: (name) => `${name} hace florecer secretos ocultos.`, bonuses: { memoryDropBonus: 0.05, lootChanceBonus: 0.03 } },
+    ],
+    combo: [
+      { level: 1, name: 'Ritmo Sangriento', description: (name) => `${name} impulsa tus cadenas iniciales.`, bonuses: { comboBonus: 0.1 } },
+      { level: 2, name: 'Racha Implacable', description: (name) => `${name} castiga mejor cada acierto consecutivo.`, bonuses: { comboBonus: 0.12, damageMultiplier: 1.03 } },
+      { level: 3, name: 'Frenesi Soberano', description: (name) => `${name} convierte la presion en dano puro.`, bonuses: { comboBonus: 0.15, damageMultiplier: 1.05 } },
+    ],
+    tribute: [
+      { level: 1, name: 'Tributo Menor', description: (name) => `${name} invoca recompensas mas generosas.`, bonuses: { obolosMultiplier: 1.05 } },
+      { level: 2, name: 'Riqueza Infernal', description: (name) => `${name} aumenta los beneficios de la conquista.`, bonuses: { obolosMultiplier: 1.06, lootChanceBonus: 0.03 } },
+      { level: 3, name: 'Tesoro del Juez', description: (name) => `${name} maximiza la ganancia del reino oscuro.`, bonuses: { obolosMultiplier: 1.08, memoryDropBonus: 0.02 } },
+    ],
+    barrier: [
+      { level: 1, name: 'Sello Defensivo', description: (name) => `${name} despierta una defensa primaria.`, bonuses: { startingShields: 1 } },
+      { level: 2, name: 'Aegis Profana', description: (name) => `${name} endurece el alma ante castigos severos.`, bonuses: { startingShields: 1, bonusHealth: 8 } },
+      { level: 3, name: 'Barrera Suprema', description: (name) => `${name} sostiene runs donde todo intenta derribarte.`, bonuses: { startingShields: 1, bonusHealth: 12, dodgeChance: 0.03 } },
+    ],
+  };
+
+  return stages[archetype].map((stage) => ({
+    level: stage.level,
+    name: stage.name,
+    description: stage.description(beast),
+    bonuses: stage.bonuses,
+  }));
+};
+
 export const generateSpecterLogo = (
   specter: Pick<SpecterDefinition, 'id' | 'title' | 'beast' | 'faction' | 'crest'>
 ) => {
@@ -438,6 +652,8 @@ export const generateSpecterLogo = (
 
 const createSpecter = (seed: SpecterSeed, index: number): SpecterDefinition => {
   const [id, title, beast, faction, crest, archetype] = seed;
+  const factionIndex = index % 36;
+  const legionRank = buildLegionRank(factionIndex);
   const definition: SpecterDefinition = {
     id,
     name: `${title} de ${beast}`,
@@ -445,8 +661,13 @@ const createSpecter = (seed: SpecterSeed, index: number): SpecterDefinition => {
     beast,
     faction,
     factionLabel: FACTION_LABELS[faction],
-    legion: buildLegion(faction, index % 36),
+    legion: buildLegion(faction, factionIndex),
+    legionRank,
+    narrativeRarity: legionRank,
+    family: FAMILY_BY_ARCHETYPE[archetype],
     crest,
+    affinity: buildAffinity(archetype),
+    awakenings: buildAwakenings(beast, archetype),
     ability: buildAbility(beast, archetype),
     logo: '',
   };
@@ -462,6 +683,14 @@ export const SPECTERS_BY_FACTION: Record<SpecterFaction, SpecterDefinition[]> = 
   Garuda: SPECTER_CATALOG.filter((specter) => specter.faction === 'Garuda'),
 };
 
+export const SPECTERS_BY_FAMILY = SPECTER_CATALOG.reduce<Record<SpecterFamily, SpecterDefinition[]>>((accumulator, specter) => {
+  if (!accumulator[specter.family]) {
+    accumulator[specter.family] = [];
+  }
+  accumulator[specter.family].push(specter);
+  return accumulator;
+}, {} as Record<SpecterFamily, SpecterDefinition[]>);
+
 export const getSpecterById = (specterId?: string | null) =>
   SPECTER_CATALOG.find((specter) => specter.id === specterId) || null;
 
@@ -471,5 +700,123 @@ export const getSpecterByName = (specterName?: string | null) =>
 export const resolveSpecterForProfile = (profile?: { specterId?: string; specterName?: string }) =>
   getSpecterById(profile?.specterId) || getSpecterByName(profile?.specterName) || null;
 
-export const getSpecterBonuses = (profile?: { specterId?: string; specterName?: string }) =>
-  resolveSpecterForProfile(profile)?.ability.bonuses || DEFAULT_BONUSES;
+const getAwakeningLevel = (
+  profile?: { specterId?: string; specterName?: string; specterAwakenings?: Record<string, number> },
+  specter?: SpecterDefinition | null
+) => {
+  const resolvedSpecter = specter || resolveSpecterForProfile(profile);
+  if (!resolvedSpecter) return 0;
+  return Math.max(0, Math.min(3, profile?.specterAwakenings?.[resolvedSpecter.id] || 0));
+};
+
+const getAwakeningBonuses = (
+  profile?: { specterId?: string; specterName?: string; specterAwakenings?: Record<string, number> },
+  specter?: SpecterDefinition | null
+) => {
+  const resolvedSpecter = specter || resolveSpecterForProfile(profile);
+  if (!resolvedSpecter) return DEFAULT_BONUSES;
+
+  const awakeningLevel = getAwakeningLevel(profile, resolvedSpecter);
+  return resolvedSpecter.awakenings
+    .filter((stage) => stage.level <= awakeningLevel)
+    .reduce((bonuses, stage) => mergeBonuses(bonuses, stage.bonuses), { ...DEFAULT_BONUSES });
+};
+
+const getDiscoveredSpecterIds = (profile?: { discoveredSpecters?: string[]; specterId?: string; specterName?: string }) => {
+  const resolved = resolveSpecterForProfile(profile);
+  const discovered = new Set(profile?.discoveredSpecters || []);
+  if (resolved?.id) {
+    discovered.add(resolved.id);
+  }
+  return Array.from(discovered);
+};
+
+export const getCompletedSpecterFamilies = (profile?: { discoveredSpecters?: string[]; specterId?: string; specterName?: string }) => {
+  const discoveredIds = getDiscoveredSpecterIds(profile);
+  const discoveredSet = new Set(discoveredIds);
+
+  return (Object.entries(SPECTERS_BY_FAMILY) as [SpecterFamily, SpecterDefinition[]][])
+    .filter(([, members]) => members.every((specter) => discoveredSet.has(specter.id)))
+    .map(([family]) => family);
+};
+
+export const getSpecterCollectionProgress = (profile?: { discoveredSpecters?: string[]; specterId?: string; specterName?: string }) => {
+  const discoveredIds = getDiscoveredSpecterIds(profile);
+  const discoveredSet = new Set(discoveredIds);
+  const completedFamilies = getCompletedSpecterFamilies(profile);
+
+  const families = (Object.entries(SPECTERS_BY_FAMILY) as [SpecterFamily, SpecterDefinition[]][])
+    .map(([family, members]) => ({
+      family,
+      total: members.length,
+      discovered: members.filter((specter) => discoveredSet.has(specter.id)).length,
+      completed: completedFamilies.includes(family),
+    }))
+    .sort((left, right) => right.discovered - left.discovered);
+
+  return {
+    discoveredCount: discoveredIds.length,
+    totalCount: SPECTER_CATALOG.length,
+    completedFamilies,
+    familyProgress: families,
+  };
+};
+
+export const getSpecterCollectionBonuses = (profile?: { discoveredSpecters?: string[]; specterId?: string; specterName?: string }) => {
+  const { discoveredCount, totalCount, completedFamilies } = getSpecterCollectionProgress(profile);
+  const discoveryRatio = totalCount === 0 ? 0 : discoveredCount / totalCount;
+
+  return {
+    damageMultiplier: 1 + completedFamilies.length * 0.015 + discoveryRatio * 0.02,
+    bonusHealth: Math.round(discoveryRatio * 20),
+    bonusTime: completedFamilies.length > 0 ? 1 : 0,
+    lootChanceBonus: completedFamilies.length * 0.01,
+    memoryDropBonus: completedFamilies.length * 0.005,
+    dodgeChance: discoveryRatio * 0.02,
+    startingShields: completedFamilies.length >= 3 ? 1 : 0,
+    comboBonus: completedFamilies.length * 0.03,
+    obolosMultiplier: 1 + completedFamilies.length * 0.02,
+  } satisfies SpecterBonuses;
+};
+
+const matchesAffinityContext = (
+  specter: SpecterDefinition,
+  context?: { mode?: string; enemyElement?: Element | null; enemyTags?: string[] }
+) => {
+  if (!context) return false;
+
+  const mode = context.mode?.toLowerCase();
+  const enemyElement = context.enemyElement || undefined;
+  const enemyTags = (context.enemyTags || []).map((tag) => tag.toLowerCase());
+
+  const modeMatch = mode ? specter.affinity.favoredModes.some((entry) => entry === mode) : false;
+  const elementMatch = enemyElement ? specter.affinity.favoredElements.includes(enemyElement) : false;
+  const tagMatch = enemyTags.some((tag) => specter.affinity.enemyTags.some((entry) => tag.includes(entry)));
+
+  return modeMatch || elementMatch || tagMatch;
+};
+
+export const getSpecterBonuses = (
+  profile?: {
+    specterId?: string;
+    specterName?: string;
+    discoveredSpecters?: string[];
+    specterAwakenings?: Record<string, number>;
+  },
+  context?: { mode?: string; enemyElement?: Element | null; enemyTags?: string[] }
+) => {
+  const specter = resolveSpecterForProfile(profile);
+  if (!specter) return { ...DEFAULT_BONUSES };
+
+  let bonuses = { ...specter.ability.bonuses };
+  bonuses = mergeBonuses(bonuses, getAwakeningBonuses(profile, specter));
+  bonuses = mergeBonuses(bonuses, getSpecterCollectionBonuses(profile));
+
+  if (matchesAffinityContext(specter, context)) {
+    bonuses = mergeBonuses(bonuses, specter.affinity.bonuses);
+  }
+
+  return bonuses;
+};
+
+export const getSpecterAwakeningLevel = getAwakeningLevel;

@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   const geminiApiKey = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY;
-  return {
+    return {
     plugins: [
       react(), 
       tailwindcss(),
@@ -45,6 +45,19 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('firebase')) return 'firebase-vendor';
+              if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) return 'react-vendor';
+              if (id.includes('framer-motion') || id.includes('/motion/')) return 'motion-vendor';
+            }
+          },
+        },
       },
     },
     server: {

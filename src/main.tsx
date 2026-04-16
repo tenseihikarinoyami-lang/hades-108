@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
+import { bootstrapTelemetry } from './lib/analytics';
 import './index.css';
 
 const updateSW = registerSW({
@@ -16,6 +17,8 @@ const updateSW = registerSW({
     registration?.update();
   },
 });
+
+bootstrapTelemetry();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
