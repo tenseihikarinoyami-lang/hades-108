@@ -8,9 +8,10 @@ import { toast } from 'sonner';
 import { Flame, Shield, Skull, Swords, Trophy } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { WORLD_BESTIARY } from '@/data/bestiary';
+import { getBossTrivia } from '@/data/nonArenaTriviaBank';
 import { getWeeklyEventForMode } from '@/data/weeklyEvents';
 import { getCombatContext } from '@/lib/combat';
-import { GeneratedTrivia, generateInfiniteTrivia } from '@/lib/gemini';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { Equipment, rollLoot } from '@/lib/rpg';
 
 const BOSS_ID = 'world_boss_typhon';
@@ -82,7 +83,7 @@ export const WorldBoss: React.FC = () => {
     }
 
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Mitologia griega extrema y Saint Seiya', 10);
+    const generated = getBossTrivia(`world-boss:${new Date().toISOString().slice(0, 10)}`, 10);
     if (generated.length > 0) {
       setQuestions(generated);
       setCurrentQ(0);

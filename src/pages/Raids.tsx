@@ -9,10 +9,11 @@ import { motion } from 'framer-motion';
 import { Shield, Zap, Skull, Flame, Trophy, Swords, Target } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { RAID_BESTIARY } from '@/data/bestiary';
+import { getBossTrivia } from '@/data/nonArenaTriviaBank';
 import { getWeeklyEventForMode } from '@/data/weeklyEvents';
 import { getCombatContext } from '@/lib/combat';
 import { getDailyRaidBoss } from '@/data/raidBosses';
-import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { calculateSetBonus, Element, getElementMultiplier, getSetBonusEffect } from '@/lib/rpg';
 
 interface RaidBoss {
@@ -100,7 +101,7 @@ export const Raids: React.FC = () => {
     }
     
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia(boss ? `boss:${boss.id}:${boss.name}` : 'boss:daily-raid', 3, 'Dios');
+    const generated = getBossTrivia(`raid:${boss?.id || 'daily'}:${new Date().toISOString().slice(0, 10)}`, 3);
     if (generated.length > 0) {
       setQuestions(generated);
       setCurrentQ(0);

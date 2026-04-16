@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Swords, Search, Shield, Trophy, Target } from 'lucide-react';
 import { audio } from '@/lib/audio';
+import { getPvPTrivia } from '@/data/nonArenaTriviaBank';
 import { getCombatContext } from '@/lib/combat';
-import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface PvPChallenge {
@@ -82,7 +83,7 @@ export const GalacticWar: React.FC = () => {
     if (!user || !profile) return;
 
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Espectro', 5);
+    const generated = getPvPTrivia(5);
     if (generated.length === 0) {
       toast.error("Error al generar el desafÃ­o.");
       setIsGenerating(false);

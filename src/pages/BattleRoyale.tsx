@@ -6,10 +6,11 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import { getBattleRoyaleTrivia } from '@/data/nonArenaTriviaBank';
 import { audio } from '@/lib/audio';
 import { getCombatContext } from '@/lib/combat';
 import { db } from '@/lib/firebase';
-import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { Equipment, rollLoot } from '@/lib/rpg';
 
 export const BattleRoyale: React.FC = () => {
@@ -59,7 +60,7 @@ export const BattleRoyale: React.FC = () => {
 
   const joinTournament = async () => {
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Extremo', 10);
+    const generated = getBattleRoyaleTrivia(1, 10);
     if (generated.length === 0) {
       toast.error('Error al conectar con el servidor del torneo.');
       setIsGenerating(false);
@@ -125,7 +126,7 @@ export const BattleRoyale: React.FC = () => {
     }
 
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Extremo', 5);
+    const generated = getBattleRoyaleTrivia(currentQ + 2, 5);
     setQuestions(generated);
     setCurrentQ(0);
     setTimeLeft(5 + combatBonuses.bonusTime);

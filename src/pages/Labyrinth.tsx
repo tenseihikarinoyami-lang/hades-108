@@ -6,12 +6,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import { getLabyrinthTrivia } from '@/data/nonArenaTriviaBank';
 import { audio } from '@/lib/audio';
 import { captureError, trackEconomyReward, trackModeRun } from '@/lib/analytics';
 import { getCombatContextFor } from '@/lib/combat';
 import { getWeeklyEventForMode } from '@/data/weeklyEvents';
 import { db } from '@/lib/firebase';
-import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { applyRunRelicBonuses, getRelicOffers, type RunRelic } from '@/lib/roguelite';
 import { Equipment, rollLoot } from '@/lib/rpg';
 
@@ -193,7 +194,7 @@ export const Labyrinth: React.FC = () => {
 
   const startRun = async () => {
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Dificil', 5);
+    const generated = getLabyrinthTrivia(1, 5);
 
     if (generated.length === 0) {
       toast.error('El Laberinto esta cerrado.');
@@ -241,7 +242,7 @@ export const Labyrinth: React.FC = () => {
     }
 
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Dificil', 5);
+    const generated = getLabyrinthTrivia(currentRoom + 1, 5);
     setQuestions(generated);
     setCurrentQ(0);
     setCurrentRoom((room) => room + 1);
@@ -346,7 +347,7 @@ export const Labyrinth: React.FC = () => {
     }
 
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Dificil', 5);
+    const generated = getLabyrinthTrivia(currentRoom + 1, 5);
     setQuestions(generated);
     setCurrentQ(0);
     setCurrentRoom((room) => room + 1);

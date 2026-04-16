@@ -8,7 +8,8 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Zap, Skull, Flame, Trophy, Sparkles, PackageOpen, Snowflake, Moon, Circle, ArrowUp, ShoppingBag, HeartPulse } from 'lucide-react';
 import { audio } from '@/lib/audio';
-import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
+import { getTowerTrivia } from '@/data/nonArenaTriviaBank';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { rollLoot, Equipment, RARITY_COLORS, Element, getElementMultiplier } from '@/lib/rpg';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getCombatContextFor } from '@/lib/combat';
@@ -98,9 +99,7 @@ export const Tower: React.FC = () => {
 
   const startFloor = async (floor: number) => {
     setIsGenerating(true);
-    // Difficulty scales with floor
-    const difficulty = floor > 20 ? 'Dios' : floor > 10 ? 'Espectro' : floor > 5 ? 'Caballero de Plata' : 'Caballero de Bronce';
-    const generated = await generateInfiniteTrivia(difficulty, 5);
+    const generated = getTowerTrivia(floor, 5);
     
     if (generated.length === 0) {
       toast.error("Error al generar el piso. Intenta de nuevo.");

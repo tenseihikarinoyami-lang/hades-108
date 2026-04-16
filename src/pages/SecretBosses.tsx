@@ -23,8 +23,9 @@ import {
 } from 'lucide-react';
 import { audio } from '@/lib/audio';
 import { PRIMORDIAL_BESTIARY } from '@/data/bestiary';
+import { getBossTrivia } from '@/data/nonArenaTriviaBank';
 import { getWeeklyEventForMode } from '@/data/weeklyEvents';
-import { generateInfiniteTrivia, GeneratedTrivia } from '@/lib/gemini';
+import { type GeneratedTrivia } from '@/lib/gemini';
 import { arrayUnion, doc, increment, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { rollGem, Equipment, RARITY_COLORS, SetType, GearType, Element } from '@/lib/rpg';
@@ -194,7 +195,7 @@ export const SecretBosses: React.FC = () => {
     if (!bossData) return;
 
     setIsGenerating(true);
-    const generated = await generateInfiniteTrivia('Dios', 10);
+    const generated = getBossTrivia(`primordial:${bossId}`, 10);
 
     if (generated.length === 0) {
       toast.error('El Primordial se niega a responder.');
